@@ -1,2 +1,0 @@
-cd ~/dev/apps/tv-maint
-nohup serve -s dist &

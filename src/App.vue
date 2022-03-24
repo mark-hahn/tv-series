@@ -16,16 +16,16 @@ div
     div(style="width:100%;")
       table(style="background-color:white; padding:0 14px; width:100%;")
         tr  
-          td(style="width:60px;font-size:small;") 
+          td(style="width:60px;font-size:large;") 
             | {{shows.length + '/' + allShowsLength}}
-          td(style="width:75px;")
-            button(@click="sortClick" style="width:65px; text-align:right;") Sort By:
+          td(style="width:100px;")
+            button(@click="sortClick" style="width:80px; text-align:right;") Sort By:
           td(v-if="sortByDate"
-             style="width:30px; text-align:left; font-size:small;") Date
+             style="width:30px; text-align:left; font-size:large;") Date
           td(v-else-if="sortByRecent" 
-             style="width:30px; text-align:left; font-size:small;") Recent
+             style="width:30px; text-align:left; font-size:large;") Recent
           td(v-else                   
-             style="width:30px; text-align:left; font-size:small;") Alpha
+             style="width:30px; text-align:left; font-size:large;") Alpha
           td(style="padding:0 4px;text-align:right;") Filters:
           td( v-for="cond in conds"
               :style="{width:'30px',textAlign:'center'}"
@@ -34,7 +34,7 @@ div
               :style="{color:condFltrColor(cond)}")
 
   div(style="margin-top:85px; width:100%;")
-    table(style="padding:0 5px; width:100%; font-size:14px")
+    table(style="padding:0 5px; width:100%; font-size:18px")
       tr(v-for="show in shows" key="show.Id" style="outline:thin solid;")
         td(style="width:30px; text-align:center;"
              @click="copyNameToClipboard(show)")
@@ -43,7 +43,7 @@ div
           div(v-show="!show.Id.startsWith('nodb-')" 
                  @click="openSeriesMap(show)")
             font-awesome-icon(icon="border-all" style="color:#ccc")
-        td(v-if="sortByDate || sortByRecent" style="width:50px;font-size:12px;") 
+        td(v-if="sortByDate || sortByRecent" style="width:50px;font-size:16px;") 
           | {{ sortByDate ? show.date : show.recentDate }}
         td(@click="showInExternal(show, $event)"
            :style="{padding:'4px', backgroundColor: highlightName == show.Name ? 'yellow' : 'white'}" :id="nameHash(show.Name)") {{show.Name}}
@@ -59,7 +59,7 @@ div
     div(style="margin:3px 10px; display:inline-block;")
       button(@click="gapClick(mapShow)") gap chk
       button(@click="closeSeriesMap()")  close
-    table(style="padding:0 5px; width:100%; font-size:14px" )
+    table(style="padding:0 5px; width:100%; font-size:16px" )
       tr(style="font-weight:bold;")
         td
         td(v-for="episode in seriesMapEpis" style="width:30px; text-align:center;"
@@ -69,7 +69,7 @@ div
         td(v-for="episode in seriesMapEpis" 
              :style="{width:'30px', textAlign:'center', backgroundColor:( seriesMap?.[season]?.[episode]?.missing ? '#f88' : (seriesMap?.gap?.[0] == season && seriesMap?.gap?.[1] == episode ? 'yellow' : (seriesMap?.gcs?.[0] == season && seriesMap?.gcs?.[1] == episode ? '#8f8' : 'white') ) ) }"
            key="episode")
-          span(v-if="seriesMap?.[season]?.[episode]?.played")  p
+          span(v-if="seriesMap?.[season]?.[episode]?.played")  w
           span(v-if="seriesMap?.[season]?.[episode]?.avail")   +
           span(v-if="seriesMap?.[season]?.[episode]?.missing") -
           span(v-if="seriesMap?.[season]?.[episode]?.unaired") u
@@ -203,7 +203,7 @@ export default {
           cond(show)  { return show.IsFavorite; },
           click(show) { toggleFavorite(show); },
         }, {
-          color: "red", filter: 0, icon: ["fas", "ban"],
+          color: "red", filter: -1, icon: ["fas", "ban"],
           cond(show)  { return show.Reject; },
           click(show) { toggleReject(show); },
         }, {
@@ -328,7 +328,7 @@ export default {
     },
 
     async openSeriesMap(show) {
-      this.copyNameToClipboard(show);
+      // this.copyNameToClipboard(show);
       this.mapShow           = show;
       const seriesMapSeasons = [];
       const seriesMapEpis    = [];
@@ -415,27 +415,28 @@ export default {
     },
 
     select() {
-      console.log(`\n--- enter select this.shows length, this.searchStr: ${this.shows.length}, "${this.searchStr}"`);
       const srchStrLc = this.searchStr == "" ? null : this.searchStr.toLowerCase();
       this.shows = allShows.filter((show) => {
         if (srchStrLc && !show.Name.toLowerCase().includes(srchStrLc)) return false;
         for (let cond of this.conds) {
-
-          console.log({cond, fltr:cond.filter, condShow: cond.cond(show)});
-
           if ( cond.filter ===  0) continue;
           if ((cond.filter === +1) != (!!cond.cond(show))) return false;
         }
         return true;
       });
-      console.log('exit select this.shows length', this.shows.length,' ---\n');
       this.scrollSavedVisShowIntoView();
     },
 
     /////////////////  UPDATE METHODS  /////////////////
     showAll() {
       this.searchStr = "";
-      for (let cond of this.conds) cond.filter == 0;
+      for (let cond of this.conds) cond.filter = 0;
+
+      const banCond = this.conds[this.conds.length-2];
+      console.log('ban cond color:', banCond.color);
+      banCond.filter = -1;
+      this.select();
+
       this.shows = allShows;
       const name = allShows[0].Name;
       this.saveVisShow(name);
@@ -476,6 +477,11 @@ export default {
         this.highlightName = name;
         this.saveVisShow(name);
       } else this.scrollSavedVisShowIntoView();
+
+      const banCond = this.conds[this.conds.length-2];
+      console.log('ban cond color:', banCond.color);
+      banCond.filter = -1;
+      this.select();
     })();
   },
 };
@@ -488,6 +494,13 @@ tr:nth-child(even) {
   font-family: Avenir, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  font-size:large;
+}
+input {
+  font-size:18px;
+}
+button {
+  font-size:18px;
 }
 #hdr {
   border: 1px solid black;
@@ -505,7 +518,7 @@ tr:nth-child(even) {
 #lbl {
   display: inline-block;
   margin-right: 10px;
-  font-size: 14px;
+  font-size: 16px;
   margin-right: 20px;
   font-weight: bold;
   color: blue;
