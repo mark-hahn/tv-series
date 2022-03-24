@@ -1,0 +1,2 @@
+npm run build-vite
+rsync -av ./ 192.168.1.103:/root/dev/apps/tv-series
