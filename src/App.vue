@@ -415,15 +415,20 @@ export default {
     },
 
     select() {
+      console.log(`\n--- enter select this.shows length, this.searchStr: ${this.shows.length}, "${this.searchStr}"`);
       const srchStrLc = this.searchStr == "" ? null : this.searchStr.toLowerCase();
       this.shows = allShows.filter((show) => {
         if (srchStrLc && !show.Name.toLowerCase().includes(srchStrLc)) return false;
         for (let cond of this.conds) {
-          if ( cond.filter ==  0) continue;
-          if ((cond.filter == +1) != cond.cond(show)) return false;
+
+          console.log({cond, fltr:cond.filter, condShow: cond.cond(show)});
+
+          if ( cond.filter ===  0) continue;
+          if ((cond.filter === +1) != (!!cond.cond(show))) return false;
         }
         return true;
       });
+      console.log('exit select this.shows length', this.shows.length,' ---\n');
       this.scrollSavedVisShowIntoView();
     },
 
