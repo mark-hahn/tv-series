@@ -19,7 +19,7 @@ div
           td(style="width:60px;font-size:large;") 
             | {{shows.length + '/' + allShowsLength}}
           td(style="width:100px;")
-            button(@click="sortClick" style="width:80px; text-align:right;") Sort By:
+            button(@click="sortClick" style="width:90px; text-align:right;") Sort By:
           td(v-if="sortByDate"
              style="width:30px; text-align:left; font-size:large;") Date
           td(v-else-if="sortByRecent" 
@@ -432,7 +432,7 @@ export default {
       this.searchStr = "";
       for (let cond of this.conds) cond.filter = 0;
 
-      const banCond = this.conds[this.conds.length-2];
+      const banCond = this.conds[this.conds.length-3];
       console.log('ban cond color:', banCond.color);
       banCond.filter = -1;
       this.select();
@@ -478,7 +478,7 @@ export default {
         this.saveVisShow(name);
       } else this.scrollSavedVisShowIntoView();
 
-      const banCond = this.conds[this.conds.length-2];
+      const banCond = this.conds[this.conds.length-3];
       console.log('ban cond color:', banCond.color);
       banCond.filter = -1;
       this.select();
