@@ -1,1 +1,1 @@
-npm run serve-vite
+powershell.exe -File run.ps1
