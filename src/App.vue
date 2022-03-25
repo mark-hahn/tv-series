@@ -21,9 +21,9 @@ div
           td(style="width:100px;")
             button(@click="sortClick" style="width:90px; text-align:right;") Sort By:
           td(v-if="sortByDate"
-             style="width:30px; text-align:left; font-size:large;") Date
+             style="width:120px; text-align:left; font-size:large;") New Shows
           td(v-else-if="sortByRecent" 
-             style="width:30px; text-align:left; font-size:large;") Recent
+             style="width:120px; text-align:left; font-size:large;") New Episodes
           td(v-else                   
              style="width:30px; text-align:left; font-size:large;") Alpha
           td(style="padding:0 4px;text-align:right;") Filters:
@@ -431,17 +431,13 @@ export default {
     showAll() {
       this.searchStr = "";
       for (let cond of this.conds) cond.filter = 0;
-
-      const banCond = this.conds[this.conds.length-3];
-      console.log('ban cond color:', banCond.color);
-      banCond.filter = -1;
-      this.select();
-
+      if(!this.sortByDate && !this.sortByRecent) {
+        const banCond = this.conds[this.conds.length-3];
+        banCond.filter = -1;
+      }
       this.shows = allShows;
-      const name = allShows[0].Name;
-      this.saveVisShow(name);
-      this.highlightName = name;
       this.scrollSavedVisShowIntoView();
+      this.select();
     },
 
     async showInExternal(show, event) {
@@ -479,7 +475,6 @@ export default {
       } else this.scrollSavedVisShowIntoView();
 
       const banCond = this.conds[this.conds.length-3];
-      console.log('ban cond color:', banCond.color);
       banCond.filter = -1;
       this.select();
     })();
