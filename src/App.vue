@@ -371,7 +371,7 @@ export default {
     condFltrColor(cond) {
       switch (cond.filter) {
         case  0: return "gray";
-        case -1: return "#ddd";
+        case -1: return "pink";
         case +1: return cond.color;
       }
     },
