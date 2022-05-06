@@ -293,6 +293,7 @@ export default {
     },
 
     scrollSavedVisShowIntoView() {
+      this.shows = allShows;
       this.$nextTick(() => {
         const name = window.localStorage.getItem("lastVisShow");
         const id = this.nameHash(name);
@@ -305,7 +306,7 @@ export default {
           window.scrollBy(0, -80);
         } else {
           console.log(`show ${id} not in show list, finding nearest match`);
-          for (let show of this.shows) {
+          for (let show of allShows) {
             const hash = this.nameHash(show.Name);
             if (hash > id) {
               const ele = document.getElementById(hash);
@@ -435,7 +436,6 @@ export default {
         const banCond = this.conds[this.conds.length-3];
         banCond.filter = -1;
       }
-      this.shows = allShows;
       this.scrollSavedVisShowIntoView();
       this.select();
     },
