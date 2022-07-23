@@ -435,7 +435,6 @@ export default {
         }
         return true;
       });
-      this.scrollSavedVisShowIntoView();
     },
 
     /////////////////  UPDATE METHODS  /////////////////
