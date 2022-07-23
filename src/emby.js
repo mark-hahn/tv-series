@@ -1,12 +1,15 @@
 import axios from "axios"
 
 const markUsrId = "894c752d448f45a3a1260ccaabd0adff";
-const authHdr = 'UserId="894c752d448f45a3a1260ccaabd0adff", ' +
+const authHdr = `UserId="${markUsrId}", ` +
                 'Client="MyClient", Device="myDevice", '      +
                 'DeviceId="123456", Version="1.0.0"';
 const fields = ['Name', 'Id', 'IsFavorite', 'Played',
                 'RunTimeTicks', 'UnplayedItemCount', "DateCreated", "ExternalUrls",
                 "Genres","Overview","Path","People","PremiereDate"];
+const apiKey = "ba7d62f79cbd4a539b675b05b5663607";
+const deviceId = "f4079adb-6e48-4d54-9185-5d92d3b7176b";
+
 let token = '';
 
 const getToken = async (name, pwd) => {
@@ -14,7 +17,7 @@ const getToken = async (name, pwd) => {
     method: 'post',
     url: "http://hahnca.com:8096" +
          "/emby/Users/AuthenticateByName" +
-         "?api_key=ba7d62f79cbd4a539b675b05b5663607",
+         `?api_key=${apiKey}`,
     headers: { Authorization: authHdr },
     data: { Username: name, Pw: pwd },
   };
@@ -23,7 +26,7 @@ const getToken = async (name, pwd) => {
 }
 
 export async function providers (show) {
-  const url = `http://hahnca.com:8096/emby/Items?Recursive=true&Fields=ProviderIds&Ids=${show.Id}&api_key=ba7d62f79cbd4a539b675b05b5663607`;
+  const url = `http://hahnca.com:8096/emby/Items?Recursive=true&Fields=ProviderIds&Ids=${show.Id}&api_key=${apiKey}`;
   const item = (await axios.get(url)).data.Items[0];
   console.log("providers", {url, show, item});
   return item?.ProviderIds;
@@ -112,6 +115,7 @@ export const findGap = async (series, seriesId) => {
 
 export async function loadAllShows() {
   console.log('entering loadAllShows');
+
   const showsRes = await axios.get(showListUrl());
   const shows = [];
   for(let key in showsRes.data.Items) {
@@ -129,6 +133,7 @@ export async function loadAllShows() {
     shows.push(item);
   }
   const showNames = shows.map(show => show.Name);
+  
   const rejects = (await axios.get(
         'http://hahnca.com/tv/rejects.json')).data;
   for(let reject of rejects) {
@@ -148,6 +153,7 @@ export async function loadAllShows() {
       });
     }
   }
+
   const pickups = (await axios.get(
         'http://hahnca.com/tv/pickups.json')).data;
   for(let pickup of pickups) {
@@ -167,18 +173,27 @@ export async function loadAllShows() {
       });
     }
   }
-  const collRes = await axios.get(toTryListUrl());
-  const collIds = [];
-  for(let item of collRes.data.Items)
-    collIds.push(item.Id);
+
+  const toTryRes = await axios.get(toTryListUrl());
+  const toTryIds = [];
+  for(let item of toTryRes.data.Items)
+    toTryIds.push(item.Id);
   for(let show of shows)
-    show.InToTry = collIds.includes(show.Id);
+    show.InToTry = toTryIds.includes(show.Id);
+
+  const forgottenRes = await axios.get(forgottenListUrl());
+  const forgottenIds = [];
+  for(let item of forgottenRes.data.Items)
+    forgottenIds.push(item.Id);
+  for(let show of shows)
+    show.InForgotten = forgottenIds.includes(show.Id);
 
   shows.sort((a,b) => {
     const aname = a.Name.replace(/The\s/i, '');
     const bname = b.Name.replace(/The\s/i, '');
     return (aname.toLowerCase() > bname.toLowerCase() ? +1 : -1);
   });
+
   console.log('all shows loaded');
   return shows;
 }
@@ -297,11 +312,28 @@ export async function toggleToTry(id, inToTry) {
   return !inToTry;
 }
 
+export async function toggleForgotten(id, inForgotten) {
+  const config = {
+    method: (inForgotten ? 'delete' : 'post'),
+    url:     forgottenUrl(id),
+  };
+  let forgottenRes;
+  try { forgottenRes = await axios(config); }
+  catch (e) {  
+    console.log(
+        `Error toggleForgotten, id:${id}, inForgotten:${inForgotten}`);
+    return inForgotten; 
+  } 
+  if(forgottenRes.status !== 204) return inForgotten;
+  console.log(`toggled inForgotten to ${!inForgotten}`);
+  return !inForgotten;
+}
+
 
 /////////////////////  URLS  ///////////////////////
 function showListUrl (startIdx=0, limit=10000) {
   return `http://hahnca.com:8096 / emby
-      / Users / 894c752d448f45a3a1260ccaabd0adff / Items
+      / Users / ${markUsrId} / Items
     ?SortBy=SortName
     &SortOrder=Ascending
     &IncludeItemTypes=Series
@@ -322,7 +354,7 @@ function showListUrl (startIdx=0, limit=10000) {
 
 function childrenUrl (parentId = '', unAired = false) {
   return `http://hahnca.com:8096 / emby
-      / Users / 894c752d448f45a3a1260ccaabd0adff / Items /
+      / Users / ${markUsrId} / Items /
     ?ParentId=${parentId}
     ${unAired ? '&IsUnaired = true' : ''}
     &X-Emby-Token=${token}
@@ -331,11 +363,11 @@ function childrenUrl (parentId = '', unAired = false) {
 
 function favoriteUrl (id) {
   return encodeURI(`http://hahnca.com:8096 / emby
-          / Users / 894c752d448f45a3a1260ccaabd0adff 
+          / Users / ${markUsrId} 
           / FavoriteItems / ${id}
     ?X-Emby-Client=Emby Web
     &X-Emby-Device-Name=Chrome
-    &X-Emby-Device-Id=f4079adb-6e48-4d54-9185-5d92d3b7176b
+    &X-Emby-Device-Id=${deviceId}
     &X-Emby-Client-Version=1.0.0
     &X-Emby-Token=${token}
   `.replace(/\s*/g, ""));
@@ -345,7 +377,7 @@ function deleteShowUrl(id) {
   return `http://hahnca.com:8096 / emby / Items / ${id}
     ?X-Emby-Client=EmbyWeb
     &X-Emby-Device-Name=Chrome
-    &X-Emby-Device-Id=f4079adb-6e48-4d54-9185-5d92d3b7176b
+    &X-Emby-Device-Id=${deviceId}
     &X-Emby-Client-Version=4.6.4.0
     &X-Emby-Token=${token}
   `.replace(/\s*/g, "");
@@ -359,14 +391,14 @@ export function embyPageUrl(id) {
 
 function toTryListUrl() {
   return `http://hahnca.com:8096 / emby / Users / 
-          894c752d448f45a3a1260ccaabd0adff / Items
+          ${markUsrId} / Items
     ?ParentId=1468316
     &ImageTypeLimit=1
     &Fields=PrimaryImageAspectRatio,ProductionYear,CanDelete
     &EnableTotalRecordCount=false
     &X-Emby-Client=EmbyWeb
     &X-Emby-Device-Name=Chrome
-    &X-Emby-Device-Id=f4079adb-6e48-4d54-9185-5d92d3b7176b
+    &X-Emby-Device-Id=${deviceId}
     &X-Emby-Client-Version=4.6.4.0
     &X-Emby-Token=${token}
   `.replace(/\s*/g, "");
@@ -376,10 +408,38 @@ function toTryUrl(id) {
   return `http://hahnca.com:8096 / emby / 
           Collections / 1468316 / Items
     ?Ids=${id}
-    &userId=894c752d448f45a3a1260ccaabd0adff
+    &userId=${markUsrId}
     &X-Emby-Client=Emby Web
     &X-Emby-Device-Name=Chrome
-    &X-Emby-Device-Id=f4079adb-6e48-4d54-9185-5d92d3b7176b
+    &X-Emby-Device-Id=${deviceId}
+    &X-Emby-Client-Version=4.6.4.0
+    &X-Emby-Token=${token}
+  `.replace(/\s*/g, "");
+}
+
+function forgottenListUrl() {
+  return `http://hahnca.com:8096 / emby / Users / 
+          ${markUsrId} / Items
+    ?ParentId=4695590
+    &ImageTypeLimit=1
+    &Fields=PrimaryImageAspectRatio,ProductionYear,CanDelete
+    &EnableTotalRecordCount=false
+    &X-Emby-Client=EmbyWeb
+    &X-Emby-Device-Name=Chrome
+    &X-Emby-Device-Id=${deviceId}
+    &X-Emby-Client-Version=4.6.4.0
+    &X-Emby-Token=${token}
+  `.replace(/\s*/g, "");
+}
+
+function forgottenUrl(id) {
+  return `http://hahnca.com:8096 / emby / 
+          Collections / 4695590 / Items
+    ?Ids=${id}
+    &userId=${markUsrId}
+    &X-Emby-Client=Emby Web
+    &X-Emby-Device-Name=Chrome
+    &X-Emby-Device-Id=${deviceId}
     &X-Emby-Client-Version=4.6.4.0
     &X-Emby-Token=${token}
   `.replace(/\s*/g, "");
@@ -388,6 +448,24 @@ function toTryUrl(id) {
 /*
 
 [
+  {
+    Name: "Forgotten",
+    ServerId: "ae3349983dbe45d9aa1d317a7753483e",
+    Id: "4695590",
+    IsFolder: true,
+    Type: "BoxSet",
+    UserData: {
+      PlaybackPositionTicks: 0,
+      PlayCount: 0,
+      IsFavorite: false,
+      Played: false
+    },
+    ImageTags: {
+      Primary: "c0d6db6855adbc941cf78ca54e0b113e"
+    },
+    BackdropImageTags: [ ]
+  },
+
   {
     "Name": "to-try",
     "ServerId": "ae3349983dbe45d9aa1d317a7753483e",
