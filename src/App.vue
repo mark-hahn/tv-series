@@ -81,12 +81,12 @@ import { library }         from "@fortawesome/fontawesome-svg-core";
 import { faLaughBeam, faSadCry, faClock, faHeart, } 
                            from "@fortawesome/free-regular-svg-icons"; 
 import { faCheck, faPlus, faMinus, faArrowDown, 
-         faTv, faSearch, faQuestion, faCopy, faBorderAll, faBan} 
+         faTv, faSearch, faQuestion, faCopy, faBorderAll, faBan, faBrain} 
                            from "@fortawesome/free-solid-svg-icons";
 library.add([  
   faLaughBeam, faSadCry, faClock, faHeart, faCheck, faPlus, 
   faMinus, faArrowDown, faTv, faSearch, faQuestion, faCopy, 
-  faBan, faBorderAll, ]);
+  faBan, faBrain, faBorderAll, ]);
  
 let allShows = [];
 let dates = null;
@@ -133,6 +133,12 @@ export default {
     const toggleToTry = async (show) => {
       this.saveVisShow(show.Name);
       show.InToTry = await emby.toggleToTry(show.Id, show.InToTry);
+    };
+
+    const toggleForgotten = async (show) => {
+      this.saveVisShow(show.Name);
+      show.InForgotten = 
+        await emby.toggleForgotten(show.Id, show.InForgotten);
     };
 
     const deleteShowFromEmby = async (show) => {
@@ -198,6 +204,10 @@ export default {
           color: "lime", filter: 0, icon: ["fas", "question"],
           cond(show)  { return show.InToTry; },
           click(show) { toggleToTry(show); },
+        }, {
+          color: "green", filter: 0, icon: ["fas", "brain"],
+          cond(show)  { return show.InForgotten; },
+          click(show) { toggleForgotten(show); },
         }, {
           color: "red", filter: 0, icon: ["far", "heart"],
           cond(show)  { return show.IsFavorite; },
