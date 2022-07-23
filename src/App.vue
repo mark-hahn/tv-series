@@ -160,7 +160,7 @@ export default {
         console.log("deleted db, removing row");
         allShows   = allShows.filter(  (show) => show.Id != id);
         this.shows = this.shows.filter((show) => show.Id != id);
-        this.scrollSavedVisShowIntoView();
+        // this.scrollSavedVisShowIntoView();
       }
     };
 
@@ -414,7 +414,7 @@ export default {
         this.highlightName = name;
         this.sortShows();
         this.saveVisShow(name);
-        this.scrollSavedVisShowIntoView();
+        // this.scrollSavedVisShowIntoView();
         console.log("added pickup", name);
       }
       this.pkupEditName = "";
