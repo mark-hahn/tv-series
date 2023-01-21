@@ -1,6 +1,6 @@
 npm run build-vite
 rsync -av                   \
    --exclude '.git'         \
-   --exclude '.vscode' \
+   --exclude '.vscode'      \
    --exclude 'node_modules' \
    ./ 192.168.1.103:/root/dev/apps/tv-series

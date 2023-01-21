@@ -22,8 +22,8 @@ div
             button(@click="sortClick" style="width:90px; text-align:right;") Sort By:
           td(v-if="sortByDate"
              style="width:120px; text-align:left; font-size:large;") New Shows
-          td(v-else-if="sortByRecent" 
-             style="width:120px; text-align:left; font-size:large;") New Episodes
+          td(v-else-if="sortBySize" 
+             style="width:120px; text-align:left; font-size:large;") Size
           td(v-else                   
              style="width:30px; text-align:left; font-size:large;") Alpha
           td(style="padding:0 4px;text-align:right;") Filters:
@@ -43,8 +43,10 @@ div
           div(v-show="!show.Id.startsWith('nodb-')" 
                  @click="openSeriesMap(show)")
             font-awesome-icon(icon="border-all" style="color:#ccc")
-        td(v-if="sortByDate || sortByRecent" style="width:50px;font-size:16px;") 
-          | {{ sortByDate ? show.date : show.recentDate }}
+        td(v-if="sortByDate" style="width:150px;font-size:16px;") 
+          | {{ show.date }}
+        td(v-if="sortBySize" style="margin-right:200px;width:60px;font-size:16px;text-align:right") 
+          | {{ parseInt(show.size/1e9) + 'G&nbsp;&nbsp;&nbsp;' }}
         td(@click="showInExternal(show, $event)"
            :style="{padding:'4px', backgroundColor: highlightName == show.Name ? 'yellow' : 'white'}" :id="nameHash(show.Name)") {{show.Name}}
         td( v-for="cond in conds" 
@@ -59,6 +61,7 @@ div
     div(style="margin:3px 10px; display:inline-block;")
       button(@click="gapClick(mapShow)") gap chk
       button(@click="closeSeriesMap()")  close
+      | {{'&nbsp;&nbsp;&nbsp;'+mapShow.Name}}
     table(style="padding:0 5px; width:100%; font-size:16px" )
       tr(style="font-weight:bold;")
         td
@@ -74,6 +77,8 @@ div
           span(v-if="seriesMap?.[season]?.[episode]?.missing") -
           span(v-if="seriesMap?.[season]?.[episode]?.unaired") u
 </template>
+
+
 <script>
 import * as emby           from "./emby.js";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
@@ -163,7 +168,7 @@ export default {
       searchStr:        "",
       pkupEditName:     "",
       sortByDate:    false,
-      sortByRecent:  false,
+      sortBySize:    false,
       highlightName:    "",
       allShowsLength:    0,
       mapShow:        null,
@@ -180,12 +185,6 @@ export default {
           cond(show)  { return show.Genres?.includes("Drama"); },
           click(show) {},
         },
-        // { color: "purple", filter: 0,
-        //   icon: ["far", "clock"],
-        //   cond(show) {
-        //       return show.RunTimeTicks > (15e9 / 21) * 35; },
-        //   click(show) {},
-        // },
         {
           color: "#0cf", filter: 0, icon: ["fas", "plus"],
           cond(show)  { return show.UnplayedItemCount > 0; },
@@ -263,17 +262,21 @@ export default {
     },
 
     async sortClick() {
-      if (this.sortByRecent) this.sortByRecent = false;
+      if (this.sortBySize) this.sortBySize = false;
       else if (this.sortByDate) {
-        this.sortByDate = false;
-        this.sortByRecent = true;
+        this.sortByDate   = false;
+        this.sortBySize = true;
         if (!recentDates) {
           recentDates = await emby.recentDates();
           console.log("loaded recentDates", recentDates);
           for (let show of allShows) {
-            show.recentDate = recentDates[this.nameHash(show.Name)];
-            if (!show.recentDate) show.recentDate = "01/01/01";
-            // console.log(show.date);
+            const recentDateSize = 
+                recentDates[this.nameHash(show.Name)]?.split('|');
+            if (!recentDateSize) {
+              show.recentDate = "01/01/01";
+              show.size = 0;
+            }
+            else [show.recentDate, show.size] = recentDateSize;
           }
         }
       } else {
@@ -329,7 +332,10 @@ export default {
     },
 
     async openSeriesMap(show) {
-      // this.copyNameToClipboard(show);
+      if(this.mapShow == show) {
+        this.mapShow = null;
+        return;
+      }
       this.mapShow           = show;
       const seriesMapSeasons = [];
       const seriesMapEpis    = [];
@@ -380,7 +386,9 @@ export default {
     sortShows() {
       allShows.sort((a, b) => {
         if (this.sortByDate) return a.date > b.date ? -1 : +1;
-        else if (this.sortByRecent) return a.recentDate > b.recentDate ? -1 : +1;
+        // else if (this.sortBySize) return a.recentDate > b.recentDate ? -1 : +1;
+        else if (this.sortBySize) 
+          return parseInt(a.size) > parseInt(b.size) ? -1 : +1;
         else {
           const aname = a.Name.replace(/The\s/i, "");
           const bname = b.Name.replace(/The\s/i, "");
@@ -417,6 +425,7 @@ export default {
 
     select() {
       const srchStrLc = this.searchStr == "" ? null : this.searchStr.toLowerCase();
+      console.log('this.shows.length before', this.shows.length);
       this.shows = allShows.filter((show) => {
         if (srchStrLc && !show.Name.toLowerCase().includes(srchStrLc)) return false;
         for (let cond of this.conds) {
@@ -425,6 +434,7 @@ export default {
         }
         return true;
       });
+      console.log('this.shows.length after', this.shows.length, this);
       this.scrollSavedVisShowIntoView();
     },
 
@@ -432,7 +442,7 @@ export default {
     showAll() {
       this.searchStr = "";
       for (let cond of this.conds) cond.filter = 0;
-      if(!this.sortByDate && !this.sortByRecent) {
+      if(!this.sortByDate && !this.sortBySize) {
         const banCond = this.conds[this.conds.length-3];
         banCond.filter = -1;
       }

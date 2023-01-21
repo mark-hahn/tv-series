@@ -3,6 +3,7 @@ node_modules
 /dist
 shows
 nohup.out
+package-lock.json
 
 # local env files
 .env.local
