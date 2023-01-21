@@ -56,7 +56,12 @@ export async function recentDates() {
         'http://hahnca.com/tv/recentDates')).data;
 }
 
-export const getSeriesMap = async (series, seriesId) => { 
+export async function deleteFile(filePath) {
+  return (await axios.get(`http://hahnca.com/tv/deleteFile?filePath=${
+            encodeURI(filePath)}`)).data;
+}
+
+export const getSeriesMap = async (series, seriesId, prune = false) => { 
   const seriesMap = [];
   const seasonsRes = await axios.get(childrenUrl(seriesId));
   for(let key in seasonsRes.data.Items) {
@@ -73,6 +78,7 @@ export const getSeriesMap = async (series, seriesId) => {
     const episodeRes = await axios.get(childrenUrl(item.Id));
     for(let key in episodeRes.data.Items) {
       let item = episodeRes.data.Items[key];
+      console.log({item});
       const episode = +item.IndexNumber;
       episodes.push( [episode, [ !!item?.UserData?.Played, 
                                    item?.LocationType != "Virtual",
@@ -323,9 +329,9 @@ function showListUrl (startIdx=0, limit=10000) {
 function childrenUrl (parentId = '', unAired = false) {
   return `http://hahnca.com:8096 / emby
       / Users / 894c752d448f45a3a1260ccaabd0adff / Items /
-    ?ParentId=${parentId}
-    ${unAired ? '&IsUnaired = true' : ''}
-    &X-Emby-Token=${token}
+    ? ParentId=${parentId}
+    ${unAired ? '& IsUnaired = true' : ''}
+    & X-Emby-Token=${token}
   `.replace(/\s*/g, "");
 }
 
