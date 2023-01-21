@@ -167,17 +167,12 @@ export async function loadAllShows() {
       });
     }
   }
-
-  // console.log(toTryListUrl());
-  // http://hahnca.com:8096/emby/Users/894c752d448f45a3a1260ccaabd0adff
-  // http://hahnca.com:8096/emby/Users/894c752d448f45a3a1260ccaabd0adff/Items?ParentId=1468316&ImageTypeLimit=1&Fields=PrimaryImageAspectRatio,ProductionYear,CanDelete&EnableTotalRecordCount=false&X-Emby-Client=EmbyWeb&X-Emby-Device-Name=Chrome&X-Emby-Device-Id=f4079adb-6e48-4d54-9185-5d92d3b7176b&X-Emby-Client-Version=4.6.4.0&X-Emby-Token=adb586c9ecb441a28ad48d510519b587
-
-  const collRes = await axios.get(toTryListUrl());
-  const collIds = [];
-  for(let item of collRes.data.Items)
-    collIds.push(item.Id);
+  const toTryRes = await axios.get(toTryListUrl());
+  const toTryIds = [];
+  for(let item of toTryRes.data.Items)
+    toTryIds.push(item.Id);
   for(let show of shows)
-    show.InToTry = collIds.includes(show.Id);
+    show.InToTry = toTryIds.includes(show.Id);
 
   shows.sort((a,b) => {
     const aname = a.Name.replace(/The\s/i, '');

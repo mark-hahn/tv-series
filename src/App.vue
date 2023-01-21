@@ -296,7 +296,6 @@ export default {
     },
 
     scrollSavedVisShowIntoView() {
-      this.shows = allShows;
       this.$nextTick(() => {
         const name = window.localStorage.getItem("lastVisShow");
         const id = this.nameHash(name);
@@ -425,7 +424,6 @@ export default {
 
     select() {
       const srchStrLc = this.searchStr == "" ? null : this.searchStr.toLowerCase();
-      console.log('this.shows.length before', this.shows.length);
       this.shows = allShows.filter((show) => {
         if (srchStrLc && !show.Name.toLowerCase().includes(srchStrLc)) return false;
         for (let cond of this.conds) {
@@ -434,7 +432,6 @@ export default {
         }
         return true;
       });
-      console.log('this.shows.length after', this.shows.length, this);
       this.scrollSavedVisShowIntoView();
     },
 
