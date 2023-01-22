@@ -57,34 +57,52 @@ export async function recentDates() {
 }
 
 export async function deleteFile(filePath) {
-  return (await axios.get(`http://hahnca.com/tv/deleteFile?filePath=${
-            encodeURI(filePath)}`)).data;
+  // return (await axios.get(`http://hahnca.com/tv/deleteFile?filePath=${
+  //           encodeURI(filePath)}`)).data;
+  return {status:'ok'};
 }
 
-export const getSeriesMap = async (series, seriesId, prune = false) => { 
+export const getSeriesMap = async (seriesId, prune = false) => { 
   const seriesMap = [];
+  let pruning = prune;
   const seasonsRes = await axios.get(childrenUrl(seriesId));
   for(let key in seasonsRes.data.Items) {
-    let item = seasonsRes.data.Items[key];
-    const season = +item.IndexNumber;
+    let season = seasonsRes.data.Items[key];
+    const seasonNumber = +season.IndexNumber;
     const unaired = {};
-    const unairedRes = await axios.get(childrenUrl(item.Id, true));
+    const unairedRes = await axios.get(childrenUrl(season.Id, true));
     for(let key in unairedRes.data.Items) {
-      let item = unairedRes.data.Items[key];
-      const episode = +item.IndexNumber;
-      unaired[episode] = true;
+      let episode = unairedRes.data.Items[key];
+      const episodeNumber = +episode.IndexNumber;
+      unaired[episodeNumber] = true;
     }
     const episodes = [];
-    const episodeRes = await axios.get(childrenUrl(item.Id));
-    for(let key in episodeRes.data.Items) {
-      let item = episodeRes.data.Items[key];
-      console.log({item});
-      const episode = +item.IndexNumber;
-      episodes.push( [episode, [ !!item?.UserData?.Played, 
-                                   item?.LocationType != "Virtual",
-                                 !!unaired[episode] ] ]);
+    const episodesRes = await axios.get(episodesUrl(season.Id));
+    for(let key in episodesRes.data.Items) {
+      let episode = episodesRes.data.Items[key];
+      const episodeNumber = +episode.IndexNumber;
+      // console.log({seasonNumber, episodeNumber, episode, Path:episode?.Path});
+      let deleted = false;
+      if(pruning) {
+        if(!episode?.UserData) pruning = false;  // shouldn't happen
+        else {
+          const played = episode.UserData.Played;
+          if(!played) pruning = false;
+          else {
+            deleted = ((await deleteFile(episode?.Path)).status == 'ok');
+            console.log(`deleted ${episode?.Path}, success: ${deleted}`);
+            if(!deleted) pruning = false;
+          }
+        }
+      }
+      episodes.push( [episodeNumber, [ !!episode?.UserData?.Played, 
+                                         episode?.LocationType != "Virtual",
+                                       !!unaired[episodeNumber],
+                                         deleted
+                                     ]]);
     }
-    seriesMap.push([season, episodes]);
+    // console.log({episodes});
+    seriesMap.push([seasonNumber, episodes]);
   }
   return seriesMap;
 }
@@ -335,6 +353,24 @@ function childrenUrl (parentId = '', unAired = false) {
   `.replace(/\s*/g, "");
 }
 
+// function episodesUrl (parentId) {
+//   return `http://hahnca.com:8096 / emby
+//       / Users / 894c752d448f45a3a1260ccaabd0adff / Items /
+//     ? ParentId=${parentId}
+//     ${unAired ? '& IsUnaired = true' : ''}
+//     & X-Emby-Token=${token}
+//   `.replace(/\s*/g, "");
+// }
+
+function episodesUrl (parentId) {
+  return `http://hahnca.com:8096 / emby
+      / Users / 894c752d448f45a3a1260ccaabd0adff / Items /
+    ? ParentId     = ${parentId}
+    & X-Emby-Token = ${token}
+    & Fields = IndexNumber %2c LocationType %2c Path
+  `.replace(/\s*/g, "");
+}
+
 function favoriteUrl (id) {
   return encodeURI(`http://hahnca.com:8096 / emby
           / Users / 894c752d448f45a3a1260ccaabd0adff 
@@ -393,6 +429,10 @@ function toTryUrl(id) {
 
 /*
 
+https://dev.emby.media/doc/restapi/index.html
+https://dev.emby.media/reference/RestAPI.html
+https://dev.emby.media/home/sdk/apiclients/index.html
+
 [
   {
     "Name": "to-try",
@@ -432,7 +472,147 @@ Name: "Cleaning Up"
 DELETE
 http://hahnca.com:8096/emby/Collections/1468316/Items?Ids=3705964&X-Emby-Client=Emby Web&X-Emby-Device-Name=Chrome&X-Emby-Device-Id=f4079adb-6e48-4d54-9185-5d92d3b7176b&X-Emby-Client-Version=4.6.4.0&X-Emby-Token=1e2f0f8dec6c4e039eaaa9657438bb6d
 
+------    get episodes  -----------
+http://hahnca.com:8096/emby/Users/894c752d448f45a3a1260ccaabd0adff/Items/?ParentId=141&X-Emby-Token=adb586c9ecb441a28ad48d510519b587&Fields=Type%2cMediaSources%2cIndexNumber%2cLocationType%2cUnplayedItemCount%2cDateCreated%2cExternalUrls%2cGenres%2cOverview%2cPath%2cPeople%2cPremiereDate
 
+{
+    "Items": [
+        {
+            "Name": "A scintillating conversation about a lethal pesticide",
+            "ServerId": "ae3349983dbe45d9aa1d317a7753483e",
+            "Id": "4689622",
+            "DateCreated": "2022-05-31T21:50:04.0000000Z",
+            "Container": "mkv",
+            "PremiereDate": "2022-04-14T07:00:00.0000000Z",
+            "ExternalUrls": [],
+            "MediaSources": [
+                {
+                    "Protocol": "File",
+                    "Id": "cb3fc73d8ddafc394d6865a589bf15bb",
+                    "Path": "/mnt/media/tv/Minx/Season 1/Minx.S01E09.A.scintillating.conversation.about.a.lethal.pesticide.1080p.HMAX.WEB-DL.DDP5.1.x264-NTb.mkv",
+                    "Type": "Default",
+                    "Container": "mkv",
+                    "Size": 1710531651,
+                    "Name": "Minx.S01E09.A.scintillating.conversation.about.a.lethal.pesticide.1080p.HMAX.WEB-DL.DDP5.1.x264-NTb",
+                    "IsRemote": false,
+                    "RunTimeTicks": 15904320000,
+                    "SupportsTranscoding": true,
+                    "SupportsDirectStream": true,
+                    "SupportsDirectPlay": true,
+                    "IsInfiniteStream": false,
+                    "RequiresOpening": false,
+                    "RequiresClosing": false,
+                    "RequiresLooping": false,
+                    "SupportsProbing": false,
+                    "MediaStreams": [
+                        {
+                            "Codec": "h264",
+                            "ColorTransfer": "bt709",
+                            "ColorPrimaries": "bt709",
+                            "ColorSpace": "bt709",
+                            "TimeBase": "1/1000",
+                            "VideoRange": "SDR",
+                            "DisplayTitle": "1080p H264",
+                            "NalLengthSize": "4",
+                            "IsInterlaced": false,
+                            "BitRate": 8604110,
+                            "BitDepth": 8,
+                            "RefFrames": 1,
+                            "IsDefault": true,
+                            "IsForced": false,
+                            "Height": 1080,
+                            "Width": 1920,
+                            "AverageFrameRate": 23.976025,
+                            "RealFrameRate": 23.976025,
+                            "Profile": "High",
+                            "Type": "Video",
+                            "AspectRatio": "16:9",
+                            "Index": 0,
+                            "IsExternal": false,
+                            "IsTextSubtitleStream": false,
+                            "SupportsExternalStream": false,
+                            "Protocol": "File",
+                            "PixelFormat": "yuv420p",
+                            "Level": 40,
+                            "IsAnamorphic": false,
+                            "AttachmentSize": 0
+                        },
+                        {
+                            "Codec": "eac3",
+                            "Language": "eng",
+                            "TimeBase": "1/1000",
+                            "DisplayTitle": "English EAC3 5.1 (Default)",
+                            "DisplayLanguage": "English",
+                            "IsInterlaced": false,
+                            "ChannelLayout": "5.1",
+                            "BitRate": 384000,
+                            "Channels": 6,
+                            "SampleRate": 48000,
+                            "IsDefault": true,
+                            "IsForced": false,
+                            "Type": "Audio",
+                            "Index": 1,
+                            "IsExternal": false,
+                            "IsTextSubtitleStream": false,
+                            "SupportsExternalStream": false,
+                            "Protocol": "File",
+                            "AttachmentSize": 0
+                        }
+                        <... more media streams ...>
+                    ],
+                    "Formats": [],
+                    "Bitrate": 8604110,
+                    "RequiredHttpHeaders": {},
+                    "ReadAtNativeFramerate": false,
+                    "DefaultAudioStreamIndex": 1,
+                    "DefaultSubtitleStreamIndex": -1
+                }
+            ],
+            "Path": "/mnt/media/tv/Minx/Season 1/Minx.S01E09.A.scintillating.conversation.about.a.lethal.pesticide.1080p.HMAX.WEB-DL.DDP5.1.x264-NTb.mkv",
+            "Overview": "While Joyce takes it easy in New York, things back at Bottom Dollar only get harder for Doug, whose vision for Minx clashes with everything Joyce’s magazine stood for. Bambi helps Shelly get in touch with her sexuality.",
+            "Genres": [],
+            "RunTimeTicks": 15904320000,
+            "Size": 1710531651,
+            "Bitrate": 8604110,
+            "IndexNumber": 9,
+            "ParentIndexNumber": 1,
+            "IsFolder": false,
+            "Type": "Episode",
+            "People": [],
+            "GenreItems": [],
+            "ParentLogoItemId": "4689614",
+            "ParentBackdropItemId": "4689614",
+            "ParentBackdropImageTags": [
+                "cb8326060ceeadfb4d6c4d15c281feb2"
+            ],
+            "UserData": {
+                "PlaybackPositionTicks": 0,
+                "PlayCount": 1,
+                "IsFavorite": false,
+                "LastPlayedDate": "2022-07-08T03:04:17.0000000Z",
+                "Played": true
+            },
+            "SeriesName": "Minx",
+            "SeriesId": "4689614",
+            "SeasonId": "4689616",
+            "SeriesPrimaryImageTag": "03f5d1d5eed479eef280420d96783d6b",
+            "SeasonName": "Season 1",
+            "ImageTags": {
+                "Primary": "1d0777f834c7d381417f3f478b5aba97"
+            },
+            "BackdropImageTags": [],
+            "ParentLogoImageTag": "695b53e792c04d68de22ea70f9713841",
+            "ParentThumbItemId": "4689614",
+            "ParentThumbImageTag": "5eb9e1f9911dd53f39ee14dc96de587b",
+            "MediaType": "Video"
+        }
+        <... more items ...>
+    ],
+    "TotalRecordCount": 10
+}
+
+
+------      series     -----------
 
 AirDays: []
 BackdropImageTags: ["dd2d6479fc843d9a6e834d3f3f965ffe"]

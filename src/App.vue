@@ -330,7 +330,7 @@ export default {
       this.saveVisShow(show.Name);
     },
 
-    async openSeriesMap(show) {
+    async openSeriesMap(show, prune = true) {
       if(this.mapShow == show) {
         this.mapShow = null;
         return;
@@ -339,7 +339,7 @@ export default {
       const seriesMapSeasons = [];
       const seriesMapEpis    = [];
       const seriesMap        = {gap:show.gap, gcs:show.gapChkStart};
-      const seriesMapIn      = await emby.getSeriesMap(show.Name, show.Id);
+      const seriesMapIn      = await emby.getSeriesMap(show.Id, prune);
       console.log({seriesMapGap:seriesMap.gap});
       for(const season of seriesMapIn) {
         const [seasonNum, episodes] = season;
@@ -348,10 +348,10 @@ export default {
         const seasonMap = {};
         seriesMap[seasonNum] = seasonMap;
         for(const episode of episodes) {
-          let [episodeNum, [played, avail, unaired]] = episode;
+          let [episodeNum, [played, avail, unaired, deleted]] = episode;
           seriesMapEpis[episodeNum] = episodeNum;
-          const missing = (!played && !avail && !unaired);
-          avail = avail && !played;
+          const missing = (deleted || (!played && !avail && !unaired));
+          avail = !deleted && avail && !played;
           seasonMap[episodeNum] = {played, avail, missing, unaired};
         }
       }
