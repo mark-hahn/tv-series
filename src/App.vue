@@ -59,8 +59,9 @@ div
         style="width:60%; background-color:#eee; padding:20px;")
     //- div(style="display:inline-block;")x {{mapShow.Name}} 
     div(style="margin:3px 10px; display:inline-block;")
-      button(@click="gapClick(mapShow)") gap chk
-      button(@click="closeSeriesMap()")  close
+      button(@click="closeSeriesMap()")             close
+      button(@click="gapClick(mapShow)")            gap chk
+      button(@click="openSeriesMap(mapShow, true)") prune
       | {{'&nbsp;&nbsp;&nbsp;'+mapShow.Name}}
     table(style="padding:0 5px; width:100%; font-size:16px" )
       tr(style="font-weight:bold;")
@@ -330,8 +331,8 @@ export default {
       this.saveVisShow(show.Name);
     },
 
-    async openSeriesMap(show, prune = true) {
-      if(this.mapShow == show) {
+    async openSeriesMap(show, prune = false) {
+      if(!prune && this.mapShow == show) {
         this.mapShow = null;
         return;
       }

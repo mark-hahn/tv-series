@@ -57,9 +57,9 @@ export async function recentDates() {
 }
 
 export async function deleteFile(filePath) {
-  // return (await axios.get(`http://hahnca.com/tv/deleteFile?filePath=${
-  //           encodeURI(filePath)}`)).data;
-  return {status:'ok'};
+  const encodedPath = encodeURI(filePath).replace(/\//g, '`');
+  return (await axios.get(`http://hahnca.com/tv/deleteFile/${encodedPath}`)).data
+  // return {status:'ok'};
 }
 
 export const getSeriesMap = async (seriesId, prune = false) => { 
@@ -89,9 +89,9 @@ export const getSeriesMap = async (seriesId, prune = false) => {
           const played = episode.UserData.Played;
           if(!played) pruning = false;
           else {
-            deleted = ((await deleteFile(episode?.Path)).status == 'ok');
-            console.log(`deleted ${episode?.Path}, success: ${deleted}`);
-            if(!deleted) pruning = false;
+            const delres = await deleteFile(episode?.Path);
+            console.log(`deleted ${episode?.Path}, success: ${delres.status}`);
+            deleted = true;
           }
         }
       }
