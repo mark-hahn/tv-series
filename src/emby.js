@@ -82,24 +82,28 @@ export const getSeriesMap = async (seriesId, prune = false) => {
       let episode = episodesRes.data.Items[key];
       const episodeNumber = +episode.IndexNumber;
       // console.log({seasonNumber, episodeNumber, episode, Path:episode?.Path});
+      const played  = !!episode?.UserData?.Played;
+      const avail   =   episode?.LocationType != "Virtual";
+      const missing = !!unaired[episodeNumber];
       let deleted = false;
       if(pruning) {
-        if(!episode?.UserData) pruning = false;  // shouldn't happen
+        if(!played && avail) pruning = false;
         else {
-          const played = episode.UserData.Played;
-          if(!played) pruning = false;
-          else {
-            const delres = await deleteFile(episode?.Path);
-            console.log(`deleted ${episode?.Path}, success: ${delres.status}`);
-            deleted = true;
-          }
+          const delres = await deleteFile(episode?.Path);
+          console.log(`delete ${episode?.Path}, status: ${delres.status}`);
+          deleted = true;
         }
       }
-      episodes.push( [episodeNumber, [ !!episode?.UserData?.Played, 
-                                         episode?.LocationType != "Virtual",
-                                       !!unaired[episodeNumber],
-                                         deleted
-                                     ]]);
+      console.log(
+       {e:seasonNumber, s:episodeNumber, played, avail, missing, deleted});
+/*
+    "e": 1, "s": 2,
+    "played": false,
+    "avail": false,
+    "missing": false,
+    "deleted": false
+}*/
+      episodes.push([episodeNumber, [played, avail, missing, deleted]]);
     }
     // console.log({episodes});
     seriesMap.push([seasonNumber, episodes]);
