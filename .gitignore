@@ -4,6 +4,8 @@ node_modules
 shows
 nohup.out
 package-lock.json
+app-bad.vue
+emby-bad.js
 
 # local env files
 .env.local
