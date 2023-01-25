@@ -62,7 +62,8 @@ export async function deleteFile(filePath) {
   // return {status:'ok'};
 }
 
-export const getSeriesMap = async (seriesId, prune = false) => { 
+export const getSeriesMap = 
+      async (seriesId, prune = false, fixNextUp = true) => { 
   const seriesMap = [];
   let pruning = prune;
   const seasonsRes = await axios.get(childrenUrl(seriesId));
@@ -76,8 +77,12 @@ export const getSeriesMap = async (seriesId, prune = false) => {
       const episodeNumber = +episode.IndexNumber;
       unaired[episodeNumber] = true;
     }
-    const episodes = [];
+    const  episodes = [];
+    let lastEpisode = null;
     const episodesRes = await axios.get(episodesUrl(season.Id));
+
+    console.log({url: episodesUrl(season.Id), episodesRes});
+
     for(let key in episodesRes.data.Items) {
       let episode = episodesRes.data.Items[key];
       const episodeNumber = +episode.IndexNumber;
@@ -94,16 +99,28 @@ export const getSeriesMap = async (seriesId, prune = false) => {
           deleted = true;
         }
       }
-      console.log(
-       {e:seasonNumber, s:episodeNumber, played, avail, missing, deleted});
-/*
-    "e": 1, "s": 2,
-    "played": false,
-    "avail": false,
-    "missing": false,
-    "deleted": false
-}*/
+      if(fixNextUp && !played && avail) {
+        fixNextUp = false;
+        if(lastEpisode) {
+          lastEpisode.UserData.LastPlayedDate = new Date().toISOString();
+
+          console.log('fix next up', {seasonNumber, episodeNumber, 
+                        postItemUrl: postItemUrl(lastEpisode.Id)});
+          console.log({lastEpisode});
+
+          const setDateRes = await axios({
+            method: 'post',
+            url:     postItemUrl(lastEpisode.Id),
+            data:    lastEpisode
+          });
+
+          console.log({setDateRes});
+        }
+      }
+      // console.log(
+      //  {e:seasonNumber, s:episodeNumber, played, avail, missing, deleted});
       episodes.push([episodeNumber, [played, avail, missing, deleted]]);
+      lastEpisode = episode;
     }
     // console.log({episodes});
     seriesMap.push([seasonNumber, episodes]);
@@ -122,6 +139,8 @@ export const findGap = async (series, seriesId) => {
     if(season < gcsSea) continue;
 
     const episRes = await axios.get(childrenUrl(item.Id));
+    // console.log({episRes});
+    // process.exit();
     for(let key in episRes.data.Items) {
       let item = episRes.data.Items[key];
       const episode = +item.IndexNumber;
@@ -329,7 +348,7 @@ export async function toggleToTry(id, inToTry) {
 /////////////////////  URLS  ///////////////////////
 function showListUrl (startIdx=0, limit=10000) {
   return `http://hahnca.com:8096 / emby
-      / Users / 894c752d448f45a3a1260ccaabd0adff / Items
+      / Users / ${markUsrId} / Items
     ?SortBy=SortName
     &SortOrder=Ascending
     &IncludeItemTypes=Series
@@ -350,16 +369,24 @@ function showListUrl (startIdx=0, limit=10000) {
 
 function childrenUrl (parentId = '', unAired = false) {
   return `http://hahnca.com:8096 / emby
-      / Users / 894c752d448f45a3a1260ccaabd0adff / Items /
+      / Users / ${markUsrId} / Items /
     ? ParentId=${parentId}
     ${unAired ? '& IsUnaired = true' : ''}
     & X-Emby-Token=${token}
   `.replace(/\s*/g, "");
 }
 
+function postItemUrl (id) {
+  return `http://hahnca.com:8096 / emby / Users / ${markUsrId} 
+          / Items / 
+          ? Id= ${id}
+          & X-Emby-Token=${token}
+  `.replace(/\s*/g, "");
+}
+
 // function episodesUrl (parentId) {
 //   return `http://hahnca.com:8096 / emby
-//       / Users / 894c752d448f45a3a1260ccaabd0adff / Items /
+//       / Users / ${markUsrId} / Items /
 //     ? ParentId=${parentId}
 //     ${unAired ? '& IsUnaired = true' : ''}
 //     & X-Emby-Token=${token}
@@ -368,16 +395,17 @@ function childrenUrl (parentId = '', unAired = false) {
 
 function episodesUrl (parentId) {
   return `http://hahnca.com:8096 / emby
-      / Users / 894c752d448f45a3a1260ccaabd0adff / Items /
+      / Users / ${markUsrId} / Items /
     ? ParentId     = ${parentId}
     & X-Emby-Token = ${token}
-    & Fields = IndexNumber %2c LocationType %2c Path
   `.replace(/\s*/g, "");
 }
 
+    // & Fields = IndexNumber %2c LocationType %2c Path
+
 function favoriteUrl (id) {
   return encodeURI(`http://hahnca.com:8096 / emby
-          / Users / 894c752d448f45a3a1260ccaabd0adff 
+          / Users / ${markUsrId} 
           / FavoriteItems / ${id}
     ?X-Emby-Client=Emby Web
     &X-Emby-Device-Name=Chrome
@@ -405,7 +433,7 @@ export function embyPageUrl(id) {
 
 function toTryListUrl() {
   return `http://hahnca.com:8096 / emby / Users / 
-          894c752d448f45a3a1260ccaabd0adff / Items
+          ${markUsrId} / Items
     ?ParentId=1468316
     &ImageTypeLimit=1
     &Fields=PrimaryImageAspectRatio,ProductionYear,CanDelete
@@ -422,7 +450,7 @@ function toTryUrl(id) {
   return `http://hahnca.com:8096 / emby / 
           Collections / 1468316 / Items
     ?Ids=${id}
-    &userId=894c752d448f45a3a1260ccaabd0adff
+    &userId=${markUsrId}
     &X-Emby-Client=Emby Web
     &X-Emby-Device-Name=Chrome
     &X-Emby-Device-Id=f4079adb-6e48-4d54-9185-5d92d3b7176b
@@ -436,6 +464,7 @@ function toTryUrl(id) {
 https://dev.emby.media/doc/restapi/index.html
 https://dev.emby.media/reference/RestAPI.html
 https://dev.emby.media/home/sdk/apiclients/index.html
+
 
 [
   {
@@ -460,14 +489,14 @@ https://dev.emby.media/home/sdk/apiclients/index.html
 ]
 
 ------      get items in TO-TRY collection  -----------
-http://hahnca.com:8096/emby/Users/894c752d448f45a3a1260ccaabd0adff/Items?ParentId=1468316&ImageTypeLimit=1&Fields=PrimaryImageAspectRatio,ProductionYear,CanDelete&EnableTotalRecordCount=false&X-Emby-Client=Emby Web&X-Emby-Device-Name=Chrome&X-Emby-Device-Id=f4079adb-6e48-4d54-9185-5d92d3b7176b&X-Emby-Client-Version=4.6.4.0&X-Emby-Token=1e2f0f8dec6c4e039eaaa9657438bb6d
+http://hahnca.com:8096/emby/Users/${markUsrId}/Items?ParentId=1468316&ImageTypeLimit=1&Fields=PrimaryImageAspectRatio,ProductionYear,CanDelete&EnableTotalRecordCount=false&X-Emby-Client=Emby Web&X-Emby-Device-Name=Chrome&X-Emby-Device-Id=f4079adb-6e48-4d54-9185-5d92d3b7176b&X-Emby-Client-Version=4.6.4.0&X-Emby-Token=1e2f0f8dec6c4e039eaaa9657438bb6d
 
 ------      add item to TO-TRY collection  -----------
 Id: "4487588"
 Name: "Yellowstone (2018)"
 
 POST
-http://hahnca.com:8096/emby/Collections/1468316/Items?Ids=4487588&userId=894c752d448f45a3a1260ccaabd0adff&X-Emby-Client=Emby Web&X-Emby-Device-Name=Chrome&X-Emby-Device-Id=f4079adb-6e48-4d54-9185-5d92d3b7176b&X-Emby-Client-Version=4.6.4.0&X-Emby-Token=1e2f0f8dec6c4e039eaaa9657438bb6d
+http://hahnca.com:8096/emby/Collections/1468316/Items?Ids=4487588&userId=${markUsrId}&X-Emby-Client=Emby Web&X-Emby-Device-Name=Chrome&X-Emby-Device-Id=f4079adb-6e48-4d54-9185-5d92d3b7176b&X-Emby-Client-Version=4.6.4.0&X-Emby-Token=1e2f0f8dec6c4e039eaaa9657438bb6d
 
 ------      delete item from TO-TRY collection  -----------
 Id: "3705964"
@@ -477,7 +506,7 @@ DELETE
 http://hahnca.com:8096/emby/Collections/1468316/Items?Ids=3705964&X-Emby-Client=Emby Web&X-Emby-Device-Name=Chrome&X-Emby-Device-Id=f4079adb-6e48-4d54-9185-5d92d3b7176b&X-Emby-Client-Version=4.6.4.0&X-Emby-Token=1e2f0f8dec6c4e039eaaa9657438bb6d
 
 ------    get episodes  -----------
-http://hahnca.com:8096/emby/Users/894c752d448f45a3a1260ccaabd0adff/Items/?ParentId=141&X-Emby-Token=adb586c9ecb441a28ad48d510519b587&Fields=Type%2cMediaSources%2cIndexNumber%2cLocationType%2cUnplayedItemCount%2cDateCreated%2cExternalUrls%2cGenres%2cOverview%2cPath%2cPeople%2cPremiereDate
+http://hahnca.com:8096/emby/Users/${markUsrId}/Items/?ParentId=141&X-Emby-Token=adb586c9ecb441a28ad48d510519b587&Fields=Type%2cMediaSources%2cIndexNumber%2cLocationType%2cUnplayedItemCount%2cDateCreated%2cExternalUrls%2cGenres%2cOverview%2cPath%2cPeople%2cPremiereDate
 
 {
     "Items": [
