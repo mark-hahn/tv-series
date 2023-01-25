@@ -70,12 +70,12 @@ export const getSeriesMap =
   for(let key in seasonsRes.data.Items) {
     let season = seasonsRes.data.Items[key];
     const seasonNumber = +season.IndexNumber;
-    const unaired = {};
+    const unairedObj = {};
     const unairedRes = await axios.get(childrenUrl(season.Id, true));
     for(let key in unairedRes.data.Items) {
       let episode = unairedRes.data.Items[key];
       const episodeNumber = +episode.IndexNumber;
-      unaired[episodeNumber] = true;
+      unairedObj[episodeNumber] = true;
     }
     const  episodes = [];
     let lastEpisode = null;
@@ -89,7 +89,7 @@ export const getSeriesMap =
       // console.log({seasonNumber, episodeNumber, episode, Path:episode?.Path});
       const played  = !!episode?.UserData?.Played;
       const avail   =   episode?.LocationType != "Virtual";
-      const unaired = !!unaired[episodeNumber];
+      const unaired = !!unairedObj[episodeNumber];
       let deleted = false;
       if(pruning) {
         if(!played && avail) pruning = false;
