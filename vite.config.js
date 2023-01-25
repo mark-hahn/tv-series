@@ -5,7 +5,6 @@ import vueJsx from '@vitejs/plugin-vue-jsx';
 import envCompatible from 'vite-plugin-env-compatible';
 import { injectHtml } from 'vite-plugin-html';
 import { viteCommonjs } from '@originjs/vite-plugin-commonjs';
-import {loadAllShows} from './src/emby';
 
 // https://vitejs.dev/config/
 export default defineConfig({

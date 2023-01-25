@@ -4,9 +4,6 @@ const markUsrId = "894c752d448f45a3a1260ccaabd0adff";
 const authHdr = 'UserId="894c752d448f45a3a1260ccaabd0adff", ' +
                 'Client="MyClient", Device="myDevice", '      +
                 'DeviceId="123456", Version="1.0.0"';
-const fields = ['Name', 'Id', 'IsFavorite', 'Played',
-                'RunTimeTicks', 'UnplayedItemCount', "DateCreated", "ExternalUrls",
-                "Genres","Overview","Path","People","PremiereDate"];
 let token = '';
 
 const getToken = async (name, pwd) => {
@@ -59,7 +56,11 @@ export async function recentDates() {
 export async function deleteFile(filePath) {
   const encodedPath = encodeURI(filePath).replace(/\//g, '`');
   return (await axios.get(`http://hahnca.com/tv/deleteFile/${encodedPath}`)).data
-  // return {status:'ok'};
+}
+
+export async function cleanFiles(filePath) {
+  const encodedPath = encodeURI(filePath).replace(/\//g, '`');
+  return (await axios.get(`http://hahnca.com/tv/cleanFiles/${encodedPath}`)).data
 }
 
 export const getSeriesMap = 
@@ -68,41 +69,60 @@ export const getSeriesMap =
   let pruning = prune;
   const seasonsRes = await axios.get(childrenUrl(seriesId));
   for(let key in seasonsRes.data.Items) {
-    let season = seasonsRes.data.Items[key];
+    let season         =  seasonsRes.data.Items[key];
+    let seasonId       =  season.Id;
     const seasonNumber = +season.IndexNumber;
-
-    const unairedObj = {};
-    const unairedRes = await axios.get(childrenUrl(season.Id, true));
+    const unairedObj   = {};
+    const unairedRes   = await axios.get(childrenUrl(seasonId, true));
     for(let key in unairedRes.data.Items) {
       let episode = unairedRes.data.Items[key];
       const episodeNumber = +episode.IndexNumber;
       unairedObj[episodeNumber] = true;
     }
     const  episodes = [];
-    let lastEpisode = null;
-    const episodesRes = await axios.get(episodesUrl(season.Id));
-    // console.log({url: episodesUrl(season.Id), episodesRes});
+    let lastWatchedEpisode = null;
+    const episodesRes = await axios.get(childrenUrl(seasonId));
+
+    // console.log('episodesRes',{url: childrenUrl(seasonId), episodesRes});
+    
     for(let key in episodesRes.data.Items) {
-      let episode = episodesRes.data.Items[key];
+      let   episode       =  episodesRes.data.Items[key];
+
+      // console.log('episode', {url: childrenUrl(seasonId), episode});
+      
       const episodeNumber = +episode.IndexNumber;
-      // console.log({seasonNumber, episodeNumber, episode, Path:episode?.Path});
-      const played  = !!episode?.UserData?.Played;
-      const avail   =   episode?.LocationType != "Virtual";
-      const unaired = !!unairedObj[episodeNumber];
+      const path          =  episode?.MediaSources?.[0]?.Path;
+      const played        = !!episode?.UserData?.Played;
+      const avail         =   episode?.LocationType != "Virtual";
+      const unaired       = !!unairedObj[episodeNumber] && !played && !avail;
       let deleted = false;
+
+      if(avail && !path)
+        console.log('warning, avail without path', `S${seasonNumber} E${episodeNumber}`);
+
+      // if(path) {
+      //   const deletedFiles = await cleanFiles(path);
+      //   if(deletedFiles.status === 'ok')
+      //      console.log('cleanFiles:', {deletedFiles});
+      //   else
+      //      console.log('cleanFiles error:', {deletedFiles});
+      // }
+
       if(pruning) {
         if(!played && avail) pruning = false;
         else {
-          const delres = await deleteFile(episode?.Path);
-          console.log(`delete ${episode?.Path}, status: ${delres.status}`);
-          deleted = true; // set even if res != 'ok', file missing?
+          if(path) {
+            const delres = await deleteFile(path);
+            console.log(`delete ${path}, status: ${delres.status}`);
+          }
+          deleted = avail; // set even if res != 'ok', file missing?
         }
       }
       if(fixNextUp && !played && avail) {
         fixNextUp = false;
-        if(lastEpisode) {
-          const url = postUserDataUrl(lastEpisode.Id);
-          const userData = lastEpisode.UserData;
+        if(lastWatchedEpisode) {
+          const url      = postUserDataUrl(lastWatchedEpisode.Id);
+          const userData = lastWatchedEpisode.UserData;
           userData.LastPlayedDate = new Date().toISOString();
           const setDateRes = await axios({
             method: 'post',
@@ -110,7 +130,7 @@ export const getSeriesMap =
             data:    userData
           });
           console.log("set date", {
-                        epi: `S${seasonNumber}E${episodeNumber}`, 
+                        epi: `S${seasonNumber} E${episodeNumber}`, 
                         post_url: url,
                         post_res: setDateRes});
         }
@@ -118,9 +138,10 @@ export const getSeriesMap =
       // console.log(
       //  {e:seasonNumber, s:episodeNumber, played, avail, unaired, deleted});
       episodes.push([episodeNumber, [played, avail, unaired, deleted]]);
-      lastEpisode = episode;
+
+      if(played) lastWatchedEpisode = episode;
     }
-    // console.log({episodes});
+    console.log({episodes});
     seriesMap.push([seasonNumber, episodes]);
   }
   return seriesMap;
@@ -370,7 +391,8 @@ function childrenUrl (parentId = '', unAired = false) {
       / Users / ${markUsrId} / Items /
     ? ParentId=${parentId}
     ${unAired ? '& IsUnaired = true' : ''}
-    & X-Emby-Token=${token}
+    & Fields       = MediaSources
+    & X-Emby-Token = ${token}
   `.replace(/\s*/g, "");
 }
 
@@ -384,19 +406,10 @@ function postUserDataUrl (id) {
 // function episodesUrl (parentId) {
 //   return `http://hahnca.com:8096 / emby
 //       / Users / ${markUsrId} / Items /
-//     ? ParentId=${parentId}
-//     ${unAired ? '& IsUnaired = true' : ''}
-//     & X-Emby-Token=${token}
+//     ? ParentId     = ${parentId}
+//     & X-Emby-Token = ${token}
 //   `.replace(/\s*/g, "");
 // }
-
-function episodesUrl (parentId) {
-  return `http://hahnca.com:8096 / emby
-      / Users / ${markUsrId} / Items /
-    ? ParentId     = ${parentId}
-    & X-Emby-Token = ${token}
-  `.replace(/\s*/g, "");
-}
 
     // & Fields = IndexNumber %2c LocationType %2c Path
 

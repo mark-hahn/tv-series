@@ -74,6 +74,7 @@ div
         td(v-for="episode in seriesMapEpis" 
              :style="{width:'30px', textAlign:'center', backgroundColor:( seriesMap?.[season]?.[episode]?.missing ? '#f88' : (seriesMap?.gap?.[0] == season && seriesMap?.gap?.[1] == episode ? 'yellow' : (seriesMap?.gcs?.[0] == season && seriesMap?.gcs?.[1] == episode ? '#8f8' : 'white') ) ) }"
            key="episode")
+          span(v-if="seriesMap?.[season]?.[episode]?.deleted") d
           span(v-if="seriesMap?.[season]?.[episode]?.played")  w
           span(v-if="seriesMap?.[season]?.[episode]?.avail")   +
           span(v-if="seriesMap?.[season]?.[episode]?.missing") -
@@ -342,28 +343,25 @@ export default {
       const seriesMapEpis    = [];
       const seriesMap        = {gap:show.gap, gcs:show.gapChkStart};
       const seriesMapIn      = await emby.getSeriesMap(show.Id, prune, fixNextUp);
-      console.log({seriesMapGap:seriesMap.gap});
+      if(seriesMap.gap)
+          console.log({seriesMapGap:seriesMap.gap});
       for(const season of seriesMapIn) {
         const [seasonNum, episodes] = season;
-        // console.log({seasonNum, episodes});
         seriesMapSeasons[seasonNum] = seasonNum;
         const seasonMap = {};
         seriesMap[seasonNum] = seasonMap;
         for(const episode of episodes) {
           let [episodeNum, [played, avail, unaired, deleted]] = episode;
           seriesMapEpis[episodeNum] = episodeNum;
-          const missing = (deleted || (!played && !avail && !unaired));
-          avail = !deleted && avail && !played;
-          seasonMap[episodeNum] = {played, avail, missing, unaired};
+          const missing = !avail && !unaired;
+          seasonMap[episodeNum] = {played, avail, missing, unaired, deleted};
         }
       }
-      this.seriesMapSeasons = seriesMapSeasons.filter( 
-                                x => x !== null && x !== null);
-      this.seriesMapEpis    = seriesMapEpis.filter( 
-                                x => x !== null && x !== null).unshift('');
+      this.seriesMapSeasons = seriesMapSeasons.filter(x => x !== null);
+      this.seriesMapEpis    = seriesMapEpis.filter(x => x !== null).unshift('');
       this.seriesMap = seriesMap;
-      console.log({thisSeriesMapGap:this.seriesMap.gap});
-
+      if(this.seriesMap.gap)
+        console.log({thisSeriesMapGap:this.seriesMap.gap});
       this.saveVisShow(show.Name);
     },
 
