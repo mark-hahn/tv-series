@@ -63,13 +63,14 @@ export async function deleteFile(filePath) {
 }
 
 export const getSeriesMap = 
-      async (seriesId, prune = false, fixNextUp = true) => { 
+      async (seriesId, prune = false, fixNextUp = false) => { 
   const seriesMap = [];
   let pruning = prune;
   const seasonsRes = await axios.get(childrenUrl(seriesId));
   for(let key in seasonsRes.data.Items) {
     let season = seasonsRes.data.Items[key];
     const seasonNumber = +season.IndexNumber;
+
     const unairedObj = {};
     const unairedRes = await axios.get(childrenUrl(season.Id, true));
     for(let key in unairedRes.data.Items) {
@@ -80,9 +81,7 @@ export const getSeriesMap =
     const  episodes = [];
     let lastEpisode = null;
     const episodesRes = await axios.get(episodesUrl(season.Id));
-
-    console.log({url: episodesUrl(season.Id), episodesRes});
-
+    // console.log({url: episodesUrl(season.Id), episodesRes});
     for(let key in episodesRes.data.Items) {
       let episode = episodesRes.data.Items[key];
       const episodeNumber = +episode.IndexNumber;
@@ -96,25 +95,24 @@ export const getSeriesMap =
         else {
           const delres = await deleteFile(episode?.Path);
           console.log(`delete ${episode?.Path}, status: ${delres.status}`);
-          deleted = true;
+          deleted = true; // set even if res != 'ok', file missing?
         }
       }
       if(fixNextUp && !played && avail) {
         fixNextUp = false;
         if(lastEpisode) {
-          lastEpisode.UserData.LastPlayedDate = new Date().toISOString();
-
-          console.log('fix next up', {seasonNumber, episodeNumber, 
-                        postItemUrl: postItemUrl(lastEpisode.Id)});
-          console.log({lastEpisode});
-
+          const url = postUserDataUrl(lastEpisode.Id);
+          const userData = lastEpisode.UserData;
+          userData.LastPlayedDate = new Date().toISOString();
           const setDateRes = await axios({
             method: 'post',
-            url:     postItemUrl(lastEpisode.Id),
-            data:    lastEpisode
+            url:     url,
+            data:    userData
           });
-
-          console.log({setDateRes});
+          console.log("set date", {
+                        epi: `S${seasonNumber}E${episodeNumber}`, 
+                        post_url: url,
+                        post_res: setDateRes});
         }
       }
       // console.log(
@@ -376,11 +374,10 @@ function childrenUrl (parentId = '', unAired = false) {
   `.replace(/\s*/g, "");
 }
 
-function postItemUrl (id) {
+function postUserDataUrl (id) {
   return `http://hahnca.com:8096 / emby / Users / ${markUsrId} 
-          / Items / 
-          ? Id= ${id}
-          & X-Emby-Token=${token}
+          / Items / ${id} / UserData
+          ? X-Emby-Token=${token}
   `.replace(/\s*/g, "");
 }
 
