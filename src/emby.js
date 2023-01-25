@@ -89,7 +89,7 @@ export const getSeriesMap =
       // console.log({seasonNumber, episodeNumber, episode, Path:episode?.Path});
       const played  = !!episode?.UserData?.Played;
       const avail   =   episode?.LocationType != "Virtual";
-      const missing = !!unaired[episodeNumber];
+      const unaired = !!unaired[episodeNumber];
       let deleted = false;
       if(pruning) {
         if(!played && avail) pruning = false;
@@ -118,8 +118,8 @@ export const getSeriesMap =
         }
       }
       // console.log(
-      //  {e:seasonNumber, s:episodeNumber, played, avail, missing, deleted});
-      episodes.push([episodeNumber, [played, avail, missing, deleted]]);
+      //  {e:seasonNumber, s:episodeNumber, played, avail, unaired, deleted});
+      episodes.push([episodeNumber, [played, avail, unaired, deleted]]);
       lastEpisode = episode;
     }
     // console.log({episodes});
