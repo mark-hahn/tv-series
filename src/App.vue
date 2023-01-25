@@ -59,9 +59,10 @@ div
         style="width:60%; background-color:#eee; padding:20px;")
     //- div(style="display:inline-block;")x {{mapShow.Name}} 
     div(style="margin:3px 10px; display:inline-block;")
-      button(@click="closeSeriesMap()")             close
-      button(@click="gapClick(mapShow)")            gap chk
-      button(@click="openSeriesMap(mapShow, true)") prune
+      button(@click="closeSeriesMap()")                    close
+      button(@click="gapClick(mapShow)")                   hide gap
+      button(@click="openSeriesMap(mapShow, false, true)") fix next-up
+      button(@click="openSeriesMap(mapShow, true)")        prune
       | {{'&nbsp;&nbsp;&nbsp;'+mapShow.Name}}
     table(style="padding:0 5px; width:100%; font-size:16px" )
       tr(style="font-weight:bold;")
@@ -331,8 +332,8 @@ export default {
       this.saveVisShow(show.Name);
     },
 
-    async openSeriesMap(show, prune = false) {
-      if(!prune && this.mapShow == show) {
+    async openSeriesMap(show, prune = false, fixNextUp = false) {
+      if(!prune && !fixNextUp && this.mapShow == show) {
         this.mapShow = null;
         return;
       }
@@ -340,7 +341,7 @@ export default {
       const seriesMapSeasons = [];
       const seriesMapEpis    = [];
       const seriesMap        = {gap:show.gap, gcs:show.gapChkStart};
-      const seriesMapIn      = await emby.getSeriesMap(show.Id, prune);
+      const seriesMapIn      = await emby.getSeriesMap(show.Id, prune, fixNextUp);
       console.log({seriesMapGap:seriesMap.gap});
       for(const season of seriesMapIn) {
         const [seasonNum, episodes] = season;
