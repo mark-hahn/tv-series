@@ -58,10 +58,10 @@ export async function deleteFile(filePath) {
   return (await axios.get(`http://hahnca.com/tv/deleteFile/${encodedPath}`)).data
 }
 
-export async function cleanFiles(filePath) {
-  const encodedPath = encodeURI(filePath).replace(/\//g, '`');
-  return (await axios.get(`http://hahnca.com/tv/cleanFiles/${encodedPath}`)).data
-}
+// export async function cleanFiles(filePath) {
+//   const encodedPath = encodeURI(filePath).replace(/\//g, '`');
+//   return (await axios.get(`http://hahnca.com/tv/cleanFiles/${encodedPath}`)).data
+// }
 
 export const getSeriesMap = 
       async (seriesId, prune = false, fixNextUp = false) => { 
