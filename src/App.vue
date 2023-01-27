@@ -223,24 +223,6 @@ export default {
   /////////////  METHODS  ////////////
   methods: {
 
-    // async gapClick(show) {
-    //   this.saveVisShow(show.Name);
-    //   if (show.gap) {
-    //     await emby.setGapChkStart(show.Name, show.gap);
-    //     show.gapChkStart = show.gap;
-    //     const gap = await emby.findGap(show.Name, show.Id);
-    //     if(gap) {
-    //       show.gap = gap;
-    //       console.log("updated gap", { series: show.Name, gap});
-    //     }
-    //     else {
-    //       delete show.gap;
-    //       console.log("deleted gap in", show.Name);
-    //     }
-    //   }
-    //   this.openSeriesMap(show);
-    // },
-
     nameHash(name) {
       this.allShowsLength = allShows.length;
       if(!name) {
@@ -340,7 +322,7 @@ export default {
       this.mapShow           = show;
       const seriesMapSeasons = [];
       const seriesMapEpis    = [];
-      const seriesMap        = {gap:show.gap, gcs:show.gapChkStart};
+      const seriesMap        = {gap:show.gap};
       const seriesMapIn      = await emby.getSeriesMap(show.Id, prune, fixNextUp);
       if(seriesMap.gap)
           console.log({seriesMapGap:seriesMap.gap});

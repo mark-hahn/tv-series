@@ -26,21 +26,8 @@ export async function providers (show) {
   return item?.ProviderIds;
 }
 
-let gapChkStarts;
-
 export async function init() {
   await getToken('MARK', '90-NBVcvbasd');
-  gapChkStarts = (await axios.get('http://hahnca.com/tv/gapChkStarts.json')).data;
-}
-
-export const setGapChkStart = async (series, gapChkStart) => {
-  gapChkStarts[series]   = gapChkStart;
-  const [gcsSea, gcsEpi] = gapChkStart;
-  const config = {
-    method: 'post',
-    url: `http://hahnca.com/tv/gapChkStart/${series}/${gcsSea}/${gcsEpi}`
-  };
-  await axios(config);
 }
 
 export async function loadDates() {
@@ -57,11 +44,6 @@ export async function deleteFile(filePath) {
   const encodedPath = encodeURI(filePath).replace(/\//g, '`');
   return (await axios.get(`http://hahnca.com/tv/deleteFile/${encodedPath}`)).data
 }
-
-// export async function cleanFiles(filePath) {
-//   const encodedPath = encodeURI(filePath).replace(/\//g, '`');
-//   return (await axios.get(`http://hahnca.com/tv/cleanFiles/${encodedPath}`)).data
-// }
 
 export const getSeriesMap = 
       async (seriesId, prune = false, fixNextUp = false) => { 
@@ -96,14 +78,6 @@ export const getSeriesMap =
 
       if(avail && !path)
         console.log('warning, avail without path', `S${seasonNumber} E${episodeNumber}`);
-
-      // if(path) {
-      //   const deletedFiles = await cleanFiles(path);
-      //   if(deletedFiles.status === 'ok')
-      //      console.log('cleanFiles:', {deletedFiles});
-      //   else
-      //      console.log('cleanFiles error:', {deletedFiles});
-      // }
 
       if(pruning) {
         if(!played && avail) pruning = false;
@@ -144,9 +118,12 @@ export const getSeriesMap =
   return seriesMap;
 }
 
-export const findGap = async (series, seriesId) => { 
-  // const [gcsSea, gcsEpi] = gapChkStarts[series] || [-1,-1];
+// findGap detects ...
+//    begUnwatched: first episodes not watched
+//    gap:    episodes missing in middle (gaps in middle)
+//    behind: recent episodes missing (pickup behind)
 
+export const findGap = async (series, seriesId) => { 
   const dbg = series == 'Love Me';
   if(dbg) console.log('debugging ' + series);
   
@@ -248,8 +225,6 @@ export async function loadAllShows() {
     //   console.log(item.Name, item.ExternalUrls);
     const gap = await findGap(item.Name, item.Id);
     if(gap) item.gap = gap;
-    const gapChkStart = gapChkStarts[item.Name];
-    if(gapChkStart) item.gapChkStart = gapChkStart;
     shows.push(item);
   }
   const showNames = shows.map(show => show.Name);
