@@ -69,14 +69,14 @@ export const getSeriesMap =
   let pruning = prune;
   const seasonsRes = await axios.get(childrenUrl(seriesId));
   for(let key in seasonsRes.data.Items) {
-    let season         =  seasonsRes.data.Items[key];
-    let seasonId       =  season.Id;
+    let   season         =  seasonsRes.data.Items[key];
+    let   seasonId       =  season.Id;
     const seasonNumber = +season.IndexNumber;
     const unairedObj   = {};
     const unairedRes   = await axios.get(childrenUrl(seasonId, true));
     for(let key in unairedRes.data.Items) {
-      let episode = unairedRes.data.Items[key];
-      const episodeNumber = +episode.IndexNumber;
+      const episodeRec    = unairedRes.data.Items[key];
+      const episodeNumber = +episodeRec.IndexNumber;
       unairedObj[episodeNumber] = true;
     }
     const  episodes = [];
@@ -86,14 +86,11 @@ export const getSeriesMap =
     // console.log('episodesRes',{url: childrenUrl(seasonId), episodesRes});
     
     for(let key in episodesRes.data.Items) {
-      let   episode       =  episodesRes.data.Items[key];
-
-      // console.log('episode', {url: childrenUrl(seasonId), episode});
-      
-      const episodeNumber = +episode.IndexNumber;
-      const path          =  episode?.MediaSources?.[0]?.Path;
-      const played        = !!episode?.UserData?.Played;
-      const avail         =   episode?.LocationType != "Virtual";
+      let   episodeRec    =  episodesRes.data.Items[key];
+      const episodeNumber = +episodeRec.IndexNumber;
+      const path          =  episodeRec?.MediaSources?.[0]?.Path;
+      const played        = !!episodeRec?.UserData?.Played;
+      const avail         =   episodeRec?.LocationType != "Virtual";
       const unaired       = !!unairedObj[episodeNumber] && !played && !avail;
       let deleted = false;
 
@@ -139,7 +136,7 @@ export const getSeriesMap =
       //  {e:seasonNumber, s:episodeNumber, played, avail, unaired, deleted});
       episodes.push([episodeNumber, [played, avail, unaired, deleted]]);
 
-      if(played) lastWatchedEpisode = episode;
+      if(played) lastWatchedEpisode = episodeRec;
     }
     console.log({episodes});
     seriesMap.push([seasonNumber, episodes]);
@@ -148,30 +145,91 @@ export const getSeriesMap =
 }
 
 export const findGap = async (series, seriesId) => { 
-  const [gcsSea, gcsEpi] = gapChkStarts[series] || [-1,-1];
-  let haveNotAvail = false;
+  // const [gcsSea, gcsEpi] = gapChkStarts[series] || [-1,-1];
+
+  const dbg = series == 'Love Me';
+  if(dbg) console.log('debugging ' + series);
+  
+  let hadSmallGap = false;
+  let lastMissing = null;
 
   const seasonsRes = await axios.get(childrenUrl(seriesId));
   for(let key in seasonsRes.data.Items) {
-    let item = seasonsRes.data.Items[key];
-    const season = +item.IndexNumber;
-    if(season < gcsSea) continue;
+    let   seasonRec = seasonsRes.data.Items[key];
+    const seasonIdx = +seasonRec.IndexNumber;
+    const seasonId  = seasonRec.Id;
 
-    const episRes = await axios.get(childrenUrl(item.Id));
+    let hadAvail              = false;
+    let hadNotAvail           = false;
+    let consecutiveMissing    = 0;
+    let consecutiveNotMissing = 0;
+
+    const unairedObj = {};
+    const unairedRes = await axios.get(childrenUrl(seasonId, true));
+    for(let key in unairedRes.data.Items) {
+      const episodeRec    = unairedRes.data.Items[key];
+      const episodeNumber = +episodeRec.IndexNumber;
+      unairedObj[episodeNumber] = true;
+    }
+    if(dbg) console.log(0, {seasonIdx, seasonRec, hadAvail, hadNotAvail, 
+       consecutiveMissing, consecutiveNotMissing, hadSmallGap, lastMissing});
+
+    const episRes = await axios.get(childrenUrl(seasonId));
     // console.log({episRes});
     // process.exit();
     for(let key in episRes.data.Items) {
-      let item = episRes.data.Items[key];
-      const episode = +item.IndexNumber;
-      if(season == gcsSea && episode < gcsEpi) continue;
+      let   episodeRec = episRes.data.Items[key];
+      const epiIndex   = +episodeRec.IndexNumber;
+      const played     = !!episodeRec?.UserData?.Played;
+      const haveFile   = (episodeRec.LocationType != "Virtual");
+      const unaired    = !!unairedObj[epiIndex] && !played && !haveFile;
+      const avail      = (haveFile || unaired);
 
-      const avail = (item?.UserData?.Played || item.LocationType != "Virtual");
-      if(!avail) haveNotAvail = true;
-      else if(haveNotAvail) {
-        console.log( `found gap in ${series}, S${season}E${episode}`);
-        return([season,episode]);
+    if(dbg) console.log(1, {seasonIdx, epiIndex, seasonRec, episodeRec,
+        hadAvail, hadNotAvail, consecutiveMissing, consecutiveNotMissing, 
+        hadSmallGap, lastMissing, played, haveFile, unaired, avail});
+
+      if(unaired) continue;
+
+      if(avail) {
+        hadSmallGap = false;
+        consecutiveMissing = 0;
+        consecutiveNotMissing++;
       }
+      else {
+        hadSmallGap = (consecutiveMissing > 0);
+        consecutiveMissing++;
+        lastMissing = [seasonIdx, epiIndex];
+      }
+
+      if(dbg) console.log(2, {seasonIdx, epiIndex, seasonRec, episodeRec,
+        hadAvail, hadNotAvail, consecutiveMissing, consecutiveNotMissing, 
+        hadSmallGap, lastMissing, played, haveFile, unaired, avail});
+
+      if(haveFile && !hadAvail) {
+        hadAvail = true;
+        continue;
+      }
+
+      if(hadAvail && !haveFile) hadNotAvail = true;
+      else if(hadNotAvail) {
+        console.log( 
+                `found gap in ${series}, S${seasonIdx} E${epiIndex}`);
+        return([seasonIdx, epiIndex]);
+      }
+
+      if(dbg) console.log(3, {seasonIdx, epiIndex, seasonRec, episodeRec,
+        hadAvail, hadNotAvail, consecutiveMissing, consecutiveNotMissing, 
+        hadSmallGap, lastMissing, played, haveFile, unaired, avail});
     }
+  }
+
+  // if(dbg) console.log(4, {hadAvail, hadNotAvail, consecutiveMissing,  
+  //                         consecutiveNotMissing, hadSmallGap, lastMissing});
+
+  if(hadSmallGap) {
+    console.log( `gap at end ${series}`, {lastMissing});
+    return lastMissing;
   }
   return null;
 }

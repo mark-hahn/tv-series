@@ -60,7 +60,6 @@ div
     //- div(style="display:inline-block;")x {{mapShow.Name}} 
     div(style="margin:3px 10px; display:inline-block;")
       button(@click="closeSeriesMap()")                    close
-      button(@click="gapClick(mapShow)")                   hide gap
       button(@click="openSeriesMap(mapShow, false, true)") fix next-up
       button(@click="openSeriesMap(mapShow, true)")        prune
       | {{'&nbsp;&nbsp;&nbsp;'+mapShow.Name}}
@@ -72,7 +71,7 @@ div
       tr(v-for="season in seriesMapSeasons" key="season" style="outline:thin solid;")
         td(style="font-weight:bold; width:20px; text-align:left;") {{season}}
         td(v-for="episode in seriesMapEpis" 
-             :style="{width:'30px', textAlign:'center', backgroundColor:( seriesMap?.[season]?.[episode]?.missing ? '#f88' : (seriesMap?.gap?.[0] == season && seriesMap?.gap?.[1] == episode ? 'yellow' : (seriesMap?.gcs?.[0] == season && seriesMap?.gcs?.[1] == episode ? '#8f8' : 'white') ) ) }"
+             :style="{width:'30px', textAlign:'center', backgroundColor: (seriesMap?.gap?.[0] == season && seriesMap?.gap?.[1] == episode ? 'yellow' : (seriesMap?.[season]?.[episode]?.missing ? '#f88' :'white') ) }"
            key="episode")
           span(v-if="seriesMap?.[season]?.[episode]?.deleted") d
           span(v-if="seriesMap?.[season]?.[episode]?.played")  w
@@ -224,23 +223,23 @@ export default {
   /////////////  METHODS  ////////////
   methods: {
 
-    async gapClick(show) {
-      this.saveVisShow(show.Name);
-      if (show.gap) {
-        await emby.setGapChkStart(show.Name, show.gap);
-        show.gapChkStart = show.gap;
-        const gap = await emby.findGap(show.Name, show.Id);
-        if(gap) {
-          show.gap = gap;
-          console.log("updated gap", { series: show.Name, gap});
-        }
-        else {
-          delete show.gap;
-          console.log("deleted gap in", show.Name);
-        }
-      }
-      this.openSeriesMap(show);
-    },
+    // async gapClick(show) {
+    //   this.saveVisShow(show.Name);
+    //   if (show.gap) {
+    //     await emby.setGapChkStart(show.Name, show.gap);
+    //     show.gapChkStart = show.gap;
+    //     const gap = await emby.findGap(show.Name, show.Id);
+    //     if(gap) {
+    //       show.gap = gap;
+    //       console.log("updated gap", { series: show.Name, gap});
+    //     }
+    //     else {
+    //       delete show.gap;
+    //       console.log("deleted gap in", show.Name);
+    //     }
+    //   }
+    //   this.openSeriesMap(show);
+    // },
 
     nameHash(name) {
       this.allShowsLength = allShows.length;
