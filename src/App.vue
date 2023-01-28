@@ -60,7 +60,6 @@ div
     //- div(style="display:inline-block;")x {{mapShow.Name}} 
     div(style="margin:3px 10px; display:inline-block;")
       button(@click="closeSeriesMap()")                    close
-      button(@click="openSeriesMap(mapShow, false, true)") fix next-up
       button(@click="openSeriesMap(mapShow, true)")        prune
       | {{'&nbsp;&nbsp;&nbsp;'+mapShow.Name}}
     table(style="padding:0 5px; width:100%; font-size:16px" )
@@ -314,8 +313,8 @@ export default {
       this.saveVisShow(show.Name);
     },
 
-    async openSeriesMap(show, prune = false, fixNextUp = false) {
-      if(!prune && !fixNextUp && this.mapShow == show) {
+    async openSeriesMap(show, prune = false) {
+      if(!prune && this.mapShow == show) {
         this.mapShow = null;
         return;
       }
@@ -323,7 +322,7 @@ export default {
       const seriesMapSeasons = [];
       const seriesMapEpis    = [];
       const seriesMap        = {gap:show.gap};
-      const seriesMapIn      = await emby.getSeriesMap(show.Id, prune, fixNextUp);
+      const seriesMapIn      = await emby.getSeriesMap(show.Id, prune);
       if(seriesMap.gap)
           console.log({seriesMapGap:seriesMap.gap});
       for(const season of seriesMapIn) {

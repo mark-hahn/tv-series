@@ -6,6 +6,9 @@ const authHdr = 'UserId="894c752d448f45a3a1260ccaabd0adff", ' +
                 'DeviceId="123456", Version="1.0.0"';
 let token = '';
 
+
+////////////////////////  INIT  ///////////////////////
+
 const getToken = async (name, pwd) => {
   const config = {
     method: 'post',
@@ -19,15 +22,18 @@ const getToken = async (name, pwd) => {
   token = showsRes.data.AccessToken;
 }
 
+export async function init() {
+  await getToken('MARK', '90-NBVcvbasd');
+}
+
+
+////////////////////////  UTILITIES  ///////////////////////
+
 export async function providers (show) {
   const url = `http://hahnca.com:8096/emby/Items?Recursive=true&Fields=ProviderIds&Ids=${show.Id}&api_key=ba7d62f79cbd4a539b675b05b5663607`;
   const item = (await axios.get(url)).data.Items[0];
   console.log("providers", {url, show, item});
   return item?.ProviderIds;
-}
-
-export async function init() {
-  await getToken('MARK', '90-NBVcvbasd');
 }
 
 export async function loadDates() {
@@ -40,13 +46,83 @@ export async function recentDates() {
         'http://hahnca.com/tv/recentDates')).data;
 }
 
-export async function deleteFile(filePath) {
-  const encodedPath = encodeURI(filePath).replace(/\//g, '`');
-  return (await axios.get(`http://hahnca.com/tv/deleteFile/${encodedPath}`)).data
+
+////////////////////////  MAIN FUNCTIONS  ///////////////////////
+
+export async function loadAllShows() {
+  console.log('entering loadAllShows');
+  const showsRes = await axios.get(showListUrl());
+  const shows = [];
+
+  for(let key in showsRes.data.Items) {
+    let show = showsRes.data.Items[key];
+    Object.assign(show, show.UserData);
+    delete show.UserData;
+    for(const k of ['DateCreated', 'PremiereDate'])
+      if(show[k]) show[k] = show[k].replace(/T.*/, '');
+
+    const gap = await findGap(show.Name, show.Id);
+    if(gap) show.gap = gap;
+    shows.push(show);
+  }
+
+  const showNames = shows.map(show => show.Name);
+  const rejects = (await axios.get(
+        'http://hahnca.com/tv/rejects.json')).data;
+  for(let reject of rejects) {
+    let gotReject = false;
+    for(let showName of showNames) {
+      if(showName == reject) {
+        const show = shows.find(show => show.Name == showName);
+        show.Reject = true;
+        gotReject = true;
+      }
+    }
+    if(!gotReject) {
+      shows.push( {
+        Name:  reject,
+        Reject:true,
+        Id:   'nodb-' + Math.random(),
+      });
+    }
+  }
+  const pickups = (await axios.get(
+        'http://hahnca.com/tv/pickups.json')).data;
+  for(let pickup of pickups) {
+    let gotPickup = false;
+    for(let showName of showNames) {
+      if(showName == pickup) {
+        const show = shows.find(show => show.Name == showName);
+        show.Pickup = true;
+        gotPickup = true;
+      }
+    }
+    if(!gotPickup) {
+      shows.push( {
+        Name:  pickup,
+        Pickup:true,
+        Id:   'nodb-' + Math.random(),
+      });
+    }
+  }
+  const toTryRes = await axios.get(toTryListUrl());
+  const toTryIds = [];
+  for(let tryEntry of toTryRes.data.Items)
+    toTryIds.push(tryEntry.Id);
+  for(let show of shows)
+    show.InToTry = toTryIds.includes(show.Id);
+
+  shows.sort((a,b) => {
+    const aname = a.Name.replace(/The\s/i, '');
+    const bname = b.Name.replace(/The\s/i, '');
+    return (aname.toLowerCase() > bname.toLowerCase() ? +1 : -1);
+  });
+  console.log('all shows loaded');
+  return shows;
 }
 
 export const getSeriesMap = 
-      async (seriesId, prune = false, fixNextUp = false) => { 
+      async (seriesId, prune = false) => { 
   const seriesMap = [];
   let pruning = prune;
   const seasonsRes = await axios.get(childrenUrl(seriesId));
@@ -83,29 +159,16 @@ export const getSeriesMap =
         if(!played && avail) pruning = false;
         else {
           if(path) {
-            const delres = await deleteFile(path);
-            console.log(`delete ${path}, status: ${delres.status}`);
+            const encodedPath = encodeURI(path).replace(/\//g, '`');
+            const delres = (await axios.get(
+              `http://hahnca.com/tv/deleteFile/${encodedPath}`)
+              ).data
+            console.log(`deleted ${path}, status: ${delres.status}`);
           }
           deleted = avail; // set even if res != 'ok', file missing?
         }
       }
-      if(fixNextUp && !played && avail) {
-        fixNextUp = false;
-        if(lastWatchedEpisode) {
-          const url      = postUserDataUrl(lastWatchedEpisode.Id);
-          const userData = lastWatchedEpisode.UserData;
-          userData.LastPlayedDate = new Date().toISOString();
-          const setDateRes = await axios({
-            method: 'post',
-            url:     url,
-            data:    userData
-          });
-          console.log("set date", {
-                        epi: `S${seasonNumber} E${episodeNumber}`, 
-                        post_url: url,
-                        post_res: setDateRes});
-        }
-      }
+
       // console.log(
       //  {e:seasonNumber, s:episodeNumber, played, avail, unaired, deleted});
       episodes.push([episodeNumber, [played, avail, unaired, deleted]]);
@@ -124,11 +187,13 @@ export const getSeriesMap =
 //    behind: recent episodes missing (pickup behind)
 
 export const findGap = async (series, seriesId) => { 
-  const dbg = series == 'Love Me';
+
+  const dbg = false;
   if(dbg) console.log('debugging ' + series);
   
   let hadSmallGap = false;
   let lastMissing = null;
+  // let fixedNextUp = false;
 
   const seasonsRes = await axios.get(childrenUrl(seriesId));
   for(let key in seasonsRes.data.Items) {
@@ -157,14 +222,29 @@ export const findGap = async (series, seriesId) => {
     for(let key in episRes.data.Items) {
       let   episodeRec = episRes.data.Items[key];
       const epiIndex   = +episodeRec.IndexNumber;
-      const played     = !!episodeRec?.UserData?.Played;
+      const userData   = episodeRec?.UserData;
+      const played     = !!userData?.Played;
       const haveFile   = (episodeRec.LocationType != "Virtual");
       const unaired    = !!unairedObj[epiIndex] && !played && !haveFile;
       const avail      = (haveFile || unaired);
 
-    if(dbg) console.log(1, {seasonIdx, epiIndex, seasonRec, episodeRec,
-        hadAvail, hadNotAvail, consecutiveMissing, consecutiveNotMissing, 
-        hadSmallGap, lastMissing, played, haveFile, unaired, avail});
+      // if(dbg && !fixedNextUp && played) {
+      //   fixedNextUp = true;
+      //   userData.LastPlayedDate = new Date().toISOString();
+      //   const url = postUserDataUrl(episodeRec.Id);
+      //   const setDateRes = await axios({
+      //     method: 'post',
+      //     url:     url,
+      //     data:    userData
+      //   });
+      //   console.log("set date", { epi: `S${seasonIdx} E${epiIndex}`, 
+      //                             post_url: url,
+      //                             post_res: setDateRes});
+      // }
+
+      if(dbg) console.log(1, {seasonIdx, epiIndex, seasonRec, episodeRec,
+          hadAvail, hadNotAvail, consecutiveMissing, consecutiveNotMissing, 
+          hadSmallGap, lastMissing, played, haveFile, unaired, avail});
 
       if(unaired) continue;
 
@@ -209,77 +289,6 @@ export const findGap = async (series, seriesId) => {
     return lastMissing;
   }
   return null;
-}
-
-export async function loadAllShows() {
-  console.log('entering loadAllShows');
-  const showsRes = await axios.get(showListUrl());
-  const shows = [];
-  for(let key in showsRes.data.Items) {
-    let item = showsRes.data.Items[key];
-    Object.assign(item, item.UserData);
-    delete item.UserData;
-    for(const k of ['DateCreated', 'PremiereDate'])
-      if(item[k]) item[k] = item[k].replace(/T.*/, '');
-    // if(item.ExternalUrls.length > 0)
-    //   console.log(item.Name, item.ExternalUrls);
-    const gap = await findGap(item.Name, item.Id);
-    if(gap) item.gap = gap;
-    shows.push(item);
-  }
-  const showNames = shows.map(show => show.Name);
-  const rejects = (await axios.get(
-        'http://hahnca.com/tv/rejects.json')).data;
-  for(let reject of rejects) {
-    let gotReject = false;
-    for(let showName of showNames) {
-      if(showName == reject) {
-        const show = shows.find(show => show.Name == showName);
-        show.Reject = true;
-        gotReject = true;
-      }
-    }
-    if(!gotReject) {
-      shows.push( {
-        Name:  reject,
-        Reject:true,
-        Id:   'nodb-' + Math.random(),
-      });
-    }
-  }
-  const pickups = (await axios.get(
-        'http://hahnca.com/tv/pickups.json')).data;
-  for(let pickup of pickups) {
-    let gotPickup = false;
-    for(let showName of showNames) {
-      if(showName == pickup) {
-        const show = shows.find(show => show.Name == showName);
-        show.Pickup = true;
-        gotPickup = true;
-      }
-    }
-    if(!gotPickup) {
-      shows.push( {
-        Name:  pickup,
-        Pickup:true,
-        Id:   'nodb-' + Math.random(),
-      });
-    }
-  }
-  const toTryRes = await axios.get(toTryListUrl());
-  const toTryIds = [];
-  for(let item of toTryRes.data.Items)
-    toTryIds.push(item.Id);
-  for(let show of shows)
-    show.InToTry = toTryIds.includes(show.Id);
-
-  shows.sort((a,b) => {
-    const aname = a.Name.replace(/The\s/i, '');
-    const bname = b.Name.replace(/The\s/i, '');
-    return (aname.toLowerCase() > bname.toLowerCase() ? +1 : -1);
-  });
-  console.log('all shows loaded');
-  return shows;
 }
 
 export async function toggleFav(id, isFav) {
@@ -398,6 +407,8 @@ export async function toggleToTry(id, inToTry) {
 
 
 /////////////////////  URLS  ///////////////////////
+
+
 function showListUrl (startIdx=0, limit=10000) {
   return `http://hahnca.com:8096 / emby
       / Users / ${markUsrId} / Items
@@ -429,12 +440,12 @@ function childrenUrl (parentId = '', unAired = false) {
   `.replace(/\s*/g, "");
 }
 
-function postUserDataUrl (id) {
-  return `http://hahnca.com:8096 / emby / Users / ${markUsrId} 
-          / Items / ${id} / UserData
-          ? X-Emby-Token=${token}
-  `.replace(/\s*/g, "");
-}
+// function postUserDataUrl (id) {
+//   return `http://hahnca.com:8096 / emby / Users / ${markUsrId} 
+//           / Items / ${id} / UserData
+//           ? X-Emby-Token=${token}
+//   `.replace(/\s*/g, "");
+// }
 
 // function episodesUrl (parentId) {
 //   return `http://hahnca.com:8096 / emby
@@ -501,6 +512,9 @@ function toTryUrl(id) {
     &X-Emby-Token=${token}
   `.replace(/\s*/g, "");
 }
+
+
+/////////////////////  RANDOM RESULTS  ///////////////////////
 
 /*
 
