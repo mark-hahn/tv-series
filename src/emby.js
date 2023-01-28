@@ -253,7 +253,7 @@ export const findGap = async (series, seriesId) => {
       if(hadWatched && !watched) hadNotWatched = true;
       else if(hadNotWatched) {
         console.log(`-- watched gap -- ${series}, S${seasonIdx} E${epiIndex}`);
-        return([seasonIdx, epiIndex, "watched gap"]);
+        return([seasonIdx, epiIndex, "watch gap"]);
       }
 
       ///////// file gap /////////
