@@ -121,15 +121,14 @@ export async function loadAllShows() {
   return shows;
 }
 
-export const getSeriesMap = 
-      async (seriesId, prune = false) => { 
+export const getSeriesMap = async (seriesId, prune = false) => { 
   const seriesMap = [];
   let pruning = prune;
   const seasonsRes = await axios.get(childrenUrl(seriesId));
   for(let key in seasonsRes.data.Items) {
-    let   season         =  seasonsRes.data.Items[key];
-    let   seasonId       =  season.Id;
-    const seasonNumber = +season.IndexNumber;
+    let   seasonRec    =  seasonsRes.data.Items[key];
+    let   seasonId     =  seasonRec.Id;
+    const seasonNumber = +seasonRec.IndexNumber;
     const unairedObj   = {};
     const unairedRes   = await axios.get(childrenUrl(seasonId, true));
     for(let key in unairedRes.data.Items) {
@@ -137,12 +136,8 @@ export const getSeriesMap =
       const episodeNumber = +episodeRec.IndexNumber;
       unairedObj[episodeNumber] = true;
     }
-    const  episodes = [];
-    let lastWatchedEpisode = null;
+    const episodes    = [];
     const episodesRes = await axios.get(childrenUrl(seasonId));
-
-    // console.log('episodesRes',{url: childrenUrl(seasonId), episodesRes});
-    
     for(let key in episodesRes.data.Items) {
       let   episodeRec    =  episodesRes.data.Items[key];
       const episodeNumber = +episodeRec.IndexNumber;
@@ -153,7 +148,8 @@ export const getSeriesMap =
       let deleted = false;
 
       if(avail && !path)
-        console.log('warning, avail without path', `S${seasonNumber} E${episodeNumber}`);
+        console.log('warning, avail without path', 
+                    `S${seasonNumber} E${episodeNumber}`);
 
       if(pruning) {
         if(!played && avail) pruning = false;
@@ -172,39 +168,32 @@ export const getSeriesMap =
       // console.log(
       //  {e:seasonNumber, s:episodeNumber, played, avail, unaired, deleted});
       episodes.push([episodeNumber, [played, avail, unaired, deleted]]);
-
-      if(played) lastWatchedEpisode = episodeRec;
     }
-    console.log({episodes});
+    // console.log({episodes});
     seriesMap.push([seasonNumber, episodes]);
   }
   return seriesMap;
 }
 
-// findGap detects ...
-//    begUnwatched: first episodes not watched
-//    gap:    episodes missing in middle (gaps in middle)
-//    behind: recent episodes missing (pickup behind)
-
 export const findGap = async (series, seriesId) => { 
 
-  const dbg = false;
+  const dbg = (series == "");
   if(dbg) console.log('debugging ' + series);
-  
-  let hadSmallGap = false;
-  let lastMissing = null;
-  // let fixedNextUp = false;
+
+  let hadNotWatched     = false;
+  let hadWatched        = false;
+  let hadNoFile         = false;
+  let hadFile           = false;
+  let hadUnaired        = false;
+  let numNoFile         = 0;
+  let lastEpiNums       = null;
+  let lastSeasonHadFile = false;
 
   const seasonsRes = await axios.get(childrenUrl(seriesId));
   for(let key in seasonsRes.data.Items) {
     let   seasonRec = seasonsRes.data.Items[key];
-    const seasonIdx = +seasonRec.IndexNumber;
     const seasonId  = seasonRec.Id;
-
-    let hadAvail              = false;
-    let hadNotAvail           = false;
-    let consecutiveMissing    = 0;
-    let consecutiveNotMissing = 0;
+    const seasonIdx = +seasonRec.IndexNumber;
 
     const unairedObj = {};
     const unairedRes = await axios.get(childrenUrl(seasonId, true));
@@ -213,80 +202,80 @@ export const findGap = async (series, seriesId) => {
       const episodeNumber = +episodeRec.IndexNumber;
       unairedObj[episodeNumber] = true;
     }
-    if(dbg) console.log(0, {seasonIdx, seasonRec, hadAvail, hadNotAvail, 
-       consecutiveMissing, consecutiveNotMissing, hadSmallGap, lastMissing});
+
+    let firstEpisodeInSeasonNotWatched = false;
+    let firstEpisodeInSeason           = true;
+    numNoFile                          = 0;
+    lastSeasonHadFile                  = false;
 
     const episRes = await axios.get(childrenUrl(seasonId));
-    // console.log({episRes});
-    // process.exit();
     for(let key in episRes.data.Items) {
       let   episodeRec = episRes.data.Items[key];
       const epiIndex   = +episodeRec.IndexNumber;
       const userData   = episodeRec?.UserData;
-      const played     = !!userData?.Played;
+      const watched     = !!userData?.Played;
       const haveFile   = (episodeRec.LocationType != "Virtual");
-      const unaired    = !!unairedObj[epiIndex] && !played && !haveFile;
-      const avail      = (haveFile || unaired);
+      const unaired    = !!unairedObj[epiIndex] && !watched && !haveFile;
 
-      // if(dbg && !fixedNextUp && played) {
-      //   fixedNextUp = true;
-      //   userData.LastPlayedDate = new Date().toISOString();
-      //   const url = postUserDataUrl(episodeRec.Id);
-      //   const setDateRes = await axios({
-      //     method: 'post',
-      //     url:     url,
-      //     data:    userData
-      //   });
-      //   console.log("set date", { epi: `S${seasonIdx} E${epiIndex}`, 
-      //                             post_url: url,
-      //                             post_res: setDateRes});
-      // }
+      if(firstEpisodeInSeason && !watched) 
+          firstEpisodeInSeasonNotWatched = true;
+
+      if(haveFile) lastSeasonHadFile = true;
 
       if(dbg) console.log(1, {seasonIdx, epiIndex, seasonRec, episodeRec,
-          hadAvail, hadNotAvail, consecutiveMissing, consecutiveNotMissing, 
-          hadSmallGap, lastMissing, played, haveFile, unaired, avail});
+                              userData, watched, haveFile, unaired,
+                              firstEpisodeInSeason,firstEpisodeInSeasonNotWatched});
 
-      if(unaired) continue;
-
-      if(avail) {
-        hadSmallGap = false;
-        consecutiveMissing = 0;
-        consecutiveNotMissing++;
+      /////////// aired epi after unaired /////////
+      if(hadUnaired && !unaired) {
+        console.log(`-- aired after unaired -- ${series} ` + 
+                    `S${seasonIdx} E${epiIndex}`);
+        return([seasonIdx, epiIndex, 'aired after unaired']);
       }
-      else {
-        hadSmallGap = (consecutiveMissing > 0);
-        consecutiveMissing++;
-        lastMissing = [seasonIdx, epiIndex];
-      }
-
-      if(dbg) console.log(2, {seasonIdx, epiIndex, seasonRec, episodeRec,
-        hadAvail, hadNotAvail, consecutiveMissing, consecutiveNotMissing, 
-        hadSmallGap, lastMissing, played, haveFile, unaired, avail});
-
-      if(haveFile && !hadAvail) {
-        hadAvail = true;
+      // unaired at end are ignored
+      if(unaired) {
+        hadUnaired = true;
         continue;
       }
+      
+      if(!haveFile && !watched) numNoFile++;
+      else                      numNoFile = 0;
 
-      if(hadAvail && !haveFile) hadNotAvail = true;
-      else if(hadNotAvail) {
-        console.log( 
-                `found gap in ${series}, S${seasonIdx} E${epiIndex}`);
-        return([seasonIdx, epiIndex]);
+      ///////// not watched at beginning of season /////////
+      if(firstEpisodeInSeasonNotWatched && watched && 
+            !firstEpisodeInSeason) {
+        console.log(`-- not watched at beginning -- ` +
+                    `${series}, S${seasonIdx} E${epiIndex}`);
+        return([seasonIdx, epiIndex, "not watched at beginning"]);
       }
 
-      if(dbg) console.log(3, {seasonIdx, epiIndex, seasonRec, episodeRec,
-        hadAvail, hadNotAvail, consecutiveMissing, consecutiveNotMissing, 
-        hadSmallGap, lastMissing, played, haveFile, unaired, avail});
+      ///////// watched gap /////////
+      if(hadWatched && !watched) hadNotWatched = true;
+      else if(hadNotWatched) {
+        console.log(`-- watched gap -- ${series}, S${seasonIdx} E${epiIndex}`);
+        return([seasonIdx, epiIndex, "watched gap"]);
+      }
+
+      ///////// file gap /////////
+      if(haveFile && !hadFile) {
+        hadFile = true;
+        continue;
+      }
+      if(hadFile && !haveFile) hadNoFile = true;
+      else if(hadNoFile) {
+        console.log(`-- file gap -- ${series}, S${seasonIdx} E${epiIndex}`);
+        return([seasonIdx, epiIndex, "file gap"]);
+      }
+      lastEpiNums = [seasonIdx, epiIndex];
     }
+    firstEpisodeInSeason = false;
   }
 
-  // if(dbg) console.log(4, {hadAvail, hadNotAvail, consecutiveMissing,  
-  //                         consecutiveNotMissing, hadSmallGap, lastMissing});
-
-  if(hadSmallGap) {
-    console.log( `gap at end ${series}`, {lastMissing});
-    return lastMissing;
+  ///////// recent episodes missing (pickup behind) ///////// 
+  if(lastSeasonHadFile && numNoFile > 1 && numNoFile < 6) {
+    console.log(`-- ${numNoFile} recent episodes missing -- ${series}`);
+    lastEpiNums.push("recent episodes missing");
+    return lastEpiNums;
   }
   return null;
 }

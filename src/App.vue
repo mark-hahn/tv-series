@@ -62,6 +62,7 @@ div
       button(@click="closeSeriesMap()")                    close
       button(@click="openSeriesMap(mapShow, true)")        prune
       | {{'&nbsp;&nbsp;&nbsp;'+mapShow.Name}}
+      div(v-if="seriesMap?.gap") &nbsp; -- &nbsp; {{seriesMap?.gap?.[2]}} &nbsp; -- 
     table(style="padding:0 5px; width:100%; font-size:16px" )
       tr(style="font-weight:bold;")
         td
