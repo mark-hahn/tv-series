@@ -317,13 +317,11 @@ export default {
     },
 
     async episodeClick(e, show, season, episode) {
-      console.log(show, season, episode, e.ctrlKey);
       let deleted = null;
       if(e.ctrlKey) {
         const ok = 
           confirm(`OK to delete ${show.Name}, S${season} E${episode}?`);
         if(!ok) return;
-        console.log('ok');
         emby.deleteFile(show, season, episode);
         deleted = {season, episode};
       }
@@ -342,8 +340,6 @@ export default {
       const seriesMapEpis    = [];
       const seriesMap        = {gap:show.gap};
       const seriesMapIn      = await emby.getSeriesMap(show.Id, prune);
-      if(seriesMap.gap)
-          console.log({seriesMapGap:seriesMap.gap});
       for(const season of seriesMapIn) {
         const [seasonNum, episodes] = season;
         seriesMapSeasons[seasonNum] = seasonNum;
@@ -362,8 +358,6 @@ export default {
       this.seriesMapSeasons = seriesMapSeasons.filter(x => x !== null);
       this.seriesMapEpis    = seriesMapEpis.filter(x => x !== null).unshift('');
       this.seriesMap = seriesMap;
-      if(this.seriesMap.gap)
-        console.log({thisSeriesMapGap:this.seriesMap.gap});
       this.saveVisShow(show.Name);
     },
 

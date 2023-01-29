@@ -121,11 +121,43 @@ export async function loadAllShows() {
   return shows;
 }
 
-export const toggleWatched = async (showId, seasonNumber, episodeNumber) => {
-
+export const toggleWatched = async (seriesId, seasonNumIn, episodeNumIn) => {
+  const seasonsRes = await axios.get(childrenUrl(seriesId));
+  for(let key in seasonsRes.data.Items) {
+    let   seasonRec    =  seasonsRes.data.Items[key];
+    const seasonId     =  seasonRec.Id;
+    const seasonNumber = +seasonRec.IndexNumber;
+    const episodesRes = await axios.get(childrenUrl(seasonId));
+    for(let key in episodesRes.data.Items) {
+      const episodeRec    = episodesRes.data.Items[key];
+      const episodeId     = episodeRec.Id;
+      const episodeNumber = +episodeRec.IndexNumber;
+      const userData      = episodeRec?.UserData;
+      const watched       = !!userData?.Played;
+      console.log({seasonNumber, seasonNumIn, episodeNumber, episodeNumIn});
+      if(seasonNumber == seasonNumIn && 
+           episodeNumber == episodeNumIn) {
+        console.log(
+          `switching watched from ${watched} to ${!watched}`);
+        userData.Played = !watched;
+        if(!userData.LastPlayedDate)
+          userData.LastPlayedDate = new Date().toISOString();
+        const url = postUserDataUrl(episodeId);
+        const setDateRes = await axios({
+          method: 'post',
+          url:     url,
+          data:    userData
+        });
+        console.log("toggled watched", {
+                      epi: `S${seasonNumber} E${episodeNumber}`, 
+                      post_url: url,
+                      post_res: setDateRes});
+      }
+    }
+  }
 }
 
-export const deleteFile = async (showId, seasonNumber, episodeNumber) => {
+export const deleteFile = async (seriesId, seasonNumber, episodeNumber) => {
 
 }
 
@@ -437,22 +469,12 @@ function childrenUrl (parentId = '', unAired = false) {
   `.replace(/\s*/g, "");
 }
 
-// function postUserDataUrl (id) {
-//   return `http://hahnca.com:8096 / emby / Users / ${markUsrId} 
-//           / Items / ${id} / UserData
-//           ? X-Emby-Token=${token}
-//   `.replace(/\s*/g, "");
-// }
-
-// function episodesUrl (parentId) {
-//   return `http://hahnca.com:8096 / emby
-//       / Users / ${markUsrId} / Items /
-//     ? ParentId     = ${parentId}
-//     & X-Emby-Token = ${token}
-//   `.replace(/\s*/g, "");
-// }
-
-    // & Fields = IndexNumber %2c LocationType %2c Path
+function postUserDataUrl (id) {
+  return `http://hahnca.com:8096 / emby / Users / ${markUsrId} 
+          / Items / ${id} / UserData
+          ? X-Emby-Token=${token}
+  `.replace(/\s*/g, "");
+}
 
 function favoriteUrl (id) {
   return encodeURI(`http://hahnca.com:8096 / emby
