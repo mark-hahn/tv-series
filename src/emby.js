@@ -121,25 +121,26 @@ export async function loadAllShows() {
   return shows;
 }
 
-export const toggleWatched = async (seriesId, seasonNumIn, episodeNumIn) => {
+export const editEpisode = 
+      async (seriesId, seasonNumIn, episodeNumIn, delFile = false) => {
   const seasonsRes = await axios.get(childrenUrl(seriesId));
   for(let key in seasonsRes.data.Items) {
     let   seasonRec    =  seasonsRes.data.Items[key];
-    const seasonId     =  seasonRec.Id;
     const seasonNumber = +seasonRec.IndexNumber;
+    if(seasonNumber != seasonNumIn) continue;
+
+    const seasonId     =  seasonRec.Id;
     const episodesRes = await axios.get(childrenUrl(seasonId));
     for(let key in episodesRes.data.Items) {
       const episodeRec    = episodesRes.data.Items[key];
-      const episodeId     = episodeRec.Id;
       const episodeNumber = +episodeRec.IndexNumber;
-      const userData      = episodeRec?.UserData;
-      const watched       = !!userData?.Played;
-      console.log({seasonNumber, seasonNumIn, episodeNumber, episodeNumIn});
-      if(seasonNumber == seasonNumIn && 
-           episodeNumber == episodeNumIn) {
-        console.log(
-          `switching watched from ${watched} to ${!watched}`);
-        userData.Played = !watched;
+      if(episodeNumber != episodeNumIn) continue;
+
+      if(!delFile) {
+        const episodeId     = episodeRec.Id;
+        const userData      = episodeRec?.UserData;
+        const watched       = !userData?.Played;
+        userData.Played = watched;
         if(!userData.LastPlayedDate)
           userData.LastPlayedDate = new Date().toISOString();
         const url = postUserDataUrl(episodeId);
@@ -152,13 +153,21 @@ export const toggleWatched = async (seriesId, seasonNumIn, episodeNumIn) => {
                       epi: `S${seasonNumber} E${episodeNumber}`, 
                       post_url: url,
                       post_res: setDateRes});
+        return watched;
+      }
+      else {
+        const path = episodeRec?.MediaSources?.[0]?.Path;
+        if(path) {
+          const encodedPath = encodeURI(path).replace(/\//g, '`');
+          const delres = (await axios.get(
+            `http://hahnca.com/tv/deleteFile/${encodedPath}`)
+            ).data
+          console.log(`deleted ${path}, status: ${delres.status}`);
+        }
+        return;
       }
     }
   }
-}
-
-export const deleteFile = async (seriesId, seasonNumber, episodeNumber) => {
-
 }
 
 export const getSeriesMap = async (seriesId, prune = false) => { 
@@ -204,9 +213,8 @@ export const getSeriesMap = async (seriesId, prune = false) => {
           deleted = avail; // set even if res != 'ok', file missing?
         }
       }
-
       // console.log(
-      //  {e:seasonNumber, s:episodeNumber, played, avail, unaired, deleted});
+      //  {s:seasonNumber, e:episodeNumber, played, avail, unaired, deleted});
       episodes.push([episodeNumber, [played, avail, unaired, deleted]]);
     }
     // console.log({episodes});

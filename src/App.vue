@@ -320,12 +320,14 @@ export default {
       let deleted = null;
       if(e.ctrlKey) {
         const ok = 
-          confirm(`OK to delete ${show.Name}, S${season} E${episode}?`);
+          confirm(`OK to delete file for ${show.Name} S${season} E${episode} ?`);
         if(!ok) return;
-        emby.deleteFile(show, season, episode);
+        // delete episode file
+        await emby.editEpisode(show.Id, season, episode, true);
         deleted = {season, episode};
       }
-      else emby.toggleWatched(show.id, season, episode);
+      else // toggle watched
+        await emby.editEpisode(show.Id, season, episode, false);
 
       this.openSeriesMap(show, false, deleted, true);
     },
