@@ -13,6 +13,7 @@ div
       button(@click="addPickUp") +
       button(@click="showAll" style="margin-left:20px") 
         | Show All
+
     div(style="width:100%;")
       table(style="background-color:white; padding:0 14px; width:100%;")
         tr  
@@ -62,7 +63,8 @@ div
       button(@click="closeSeriesMap()")                    close
       button(@click="openSeriesMap(mapShow, true)")        prune
       | {{'&nbsp;&nbsp;&nbsp;'+mapShow.Name}}
-      div(v-if="seriesMap?.gap" style="color:red;") &nbsp; -- &nbsp; {{seriesMap?.gap?.[2]}} &nbsp; -- 
+      div(v-if="seriesMap?.gap" style="color:red;") 
+      | &nbsp; -- &nbsp; {{seriesMap?.gap?.[2]}} &nbsp; -- 
     table(style="padding:0 5px; width:100%; font-size:16px" )
       tr(style="font-weight:bold;")
         td
@@ -71,8 +73,8 @@ div
       tr(v-for="season in seriesMapSeasons" key="season" style="outline:thin solid;")
         td(style="font-weight:bold; width:20px; text-align:left;") {{season}}
         td(v-for="episode in seriesMapEpis" 
-             :style="{width:'30px', textAlign:'center', backgroundColor: (seriesMap?.gap?.[0] == season && seriesMap?.gap?.[1] == episode ? 'yellow' : (seriesMap?.[season]?.[episode]?.missing ? '#f88' :'white') ) }"
-           key="episode")
+             :style="{cursor:'default', width:'30px', textAlign:'center', backgroundColor: (seriesMap?.gap?.[0] == season && seriesMap?.gap?.[1] == episode ? 'yellow' : (seriesMap?.[season]?.[episode]?.missing ? '#f88' :'white') ) }"
+           key="episode" @click="episodeClick( $event, mapShow, season, episode)")
           span(v-if="seriesMap?.[season]?.[episode]?.deleted") d
           span(v-if="seriesMap?.[season]?.[episode]?.played")  w
           span(v-if="seriesMap?.[season]?.[episode]?.avail")   +
@@ -314,8 +316,24 @@ export default {
       this.saveVisShow(show.Name);
     },
 
-    async openSeriesMap(show, prune = false) {
-      if(!prune && this.mapShow == show) {
+    async episodeClick(e, show, season, episode) {
+      console.log(show, season, episode, e.ctrlKey);
+      let deleted = null;
+      if(e.ctrlKey) {
+        const ok = 
+          confirm(`OK to delete ${show.Name}, S${season} E${episode}?`);
+        if(!ok) return;
+        console.log('ok');
+        emby.deleteFile(show, season, episode);
+        deleted = {season, episode};
+      }
+      else emby.toggleWatched(show.id, season, episode);
+
+      this.openSeriesMap(show, false, deleted, true);
+    },
+
+    async openSeriesMap(show, prune = false, deletedEpi, keep = false) {
+      if(!prune && !keep && this.mapShow == show) {
         this.mapShow = null;
         return;
       }
@@ -334,6 +352,9 @@ export default {
         for(const episode of episodes) {
           let [episodeNum, [played, avail, unaired, deleted]] = episode;
           seriesMapEpis[episodeNum] = episodeNum;
+          if( deletedEpi?.season == seasonNum &&
+              deletedEpi.episode == episodeNum) 
+            deleted = true;
           const missing = !avail && !unaired;
           seasonMap[episodeNum] = {played, avail, missing, unaired, deleted};
         }

@@ -121,6 +121,14 @@ export async function loadAllShows() {
   return shows;
 }
 
+export const toggleWatched = async (showId, seasonNumber, episodeNumber) => {
+
+}
+
+export const deleteFile = async (showId, seasonNumber, episodeNumber) => {
+
+}
+
 export const getSeriesMap = async (seriesId, prune = false) => { 
   const seriesMap = [];
   let pruning = prune;
@@ -219,7 +227,7 @@ export const findGap = async (series, seriesId) => {
 
       if(firstEpisodeInSeason && !watched) 
           firstEpisodeInSeasonNotWatched = true;
-
+      if(watched)  hadWatched = true;
       if(haveFile) lastSeasonHadFile = true;
 
       if(dbg) console.log(1, {seasonIdx, epiIndex, seasonRec, episodeRec,
@@ -251,7 +259,7 @@ export const findGap = async (series, seriesId) => {
 
       ///////// watched gap /////////
       if(hadWatched && !watched) hadNotWatched = true;
-      else if(hadNotWatched) {
+      else if(hadNotWatched && watched) {
         console.log(`-- watched gap -- ${series}, S${seasonIdx} E${epiIndex}`);
         return([seasonIdx, epiIndex, "watch gap"]);
       }
@@ -273,8 +281,8 @@ export const findGap = async (series, seriesId) => {
 
   ///////// recent episodes missing (pickup behind) ///////// 
   if(lastSeasonHadFile && numNoFile > 1 && numNoFile < 6) {
-    console.log(`-- ${numNoFile} recent episodes missing -- ${series}`);
-    lastEpiNums.push("recent episodes missing");
+    console.log(`-- end episodes missing -- ${series}`);
+    lastEpiNums.push("end episodes missing");
     return lastEpiNums;
   }
   return null;
