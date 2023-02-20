@@ -121,41 +121,30 @@ export async function loadAllShows() {
   return shows;
 }
 
-export const editEpisode = 
-      async (seriesId, seasonNumIn, episodeNumIn, delFile = false) => {
+export const editEpisode = async (seriesId, 
+              seasonNumIn, episodeNumIn, delFile = false) => {
+  let lastWatchedRec = null;
+
   const seasonsRes = await axios.get(childrenUrl(seriesId));
   for(let key in seasonsRes.data.Items) {
     let   seasonRec    =  seasonsRes.data.Items[key];
     const seasonNumber = +seasonRec.IndexNumber;
     if(seasonNumber != seasonNumIn) continue;
 
-    const seasonId     =  seasonRec.Id;
+    const seasonId    =  seasonRec.Id;
     const episodesRes = await axios.get(childrenUrl(seasonId));
     for(let key in episodesRes.data.Items) {
-      const episodeRec    = episodesRes.data.Items[key];
-      const episodeNumber = +episodeRec.IndexNumber;
-      if(episodeNumber != episodeNumIn) continue;
+      const episodeRec     = episodesRes.data.Items[key];
+      const episodeNumber  = +episodeRec.IndexNumber;
+      const userData       = episodeRec?.UserData;
+      const watched        = userData?.Played;
 
-      if(!delFile) {
-        const episodeId     = episodeRec.Id;
-        const userData      = episodeRec?.UserData;
-        const watched       = !userData?.Played;
-        userData.Played = watched;
-        if(!userData.LastPlayedDate)
-          userData.LastPlayedDate = new Date().toISOString();
-        const url = postUserDataUrl(episodeId);
-        const setDateRes = await axios({
-          method: 'post',
-          url:     url,
-          data:    userData
-        });
-        console.log("toggled watched", {
-                      epi: `S${seasonNumber} E${episodeNumber}`, 
-                      post_url: url,
-                      post_res: setDateRes});
-        return watched;
+      if(episodeNumber != episodeNumIn) {
+        if(watched) lastWatchedRec = episodeRec;
+        continue;
       }
-      else {
+
+      if(delFile) {
         const path = episodeRec?.MediaSources?.[0]?.Path;
         if(path) {
           const encodedPath = encodeURI(path).replace(/\//g, '`');
@@ -166,7 +155,61 @@ export const editEpisode =
         }
         return;
       }
+
+      const episodeId = episodeRec.Id;
+      userData.Played = watched;
+      if(!userData.LastPlayedDate)
+        userData.LastPlayedDate = new Date().toISOString();
+      const url = postUserDataUrl(episodeId);
+      const setDateRes = await axios({
+        method: 'post',
+        url:     url,
+        data:    userData
+      });
+      console.log("toggled watched", {
+                    epi: `S${seasonNumber} E${episodeNumber}`, 
+                    post_url: url,
+                    post_res: setDateRes
+                  });
     }
+  }
+}
+
+export const setLastWatched = async (seriesId) => {
+  let seasonNumber;
+  let lastWatchedEpisodeRec = null;
+  const seasonsRes = await axios.get(childrenUrl(seriesId));
+seasonLoop: 
+  for(let key in seasonsRes.data.Items) {
+    let   seasonRec    =  seasonsRes.data.Items[key];
+    seasonNumber       = +seasonRec.IndexNumber;
+    const seasonId     = +seasonRec.Id;
+    const episodesRes  = await axios.get(childrenUrl(seasonId));
+    for(let key in episodesRes.data.Items) {
+      const episodeRec = episodesRes.data.Items[key];
+      const userData   = episodeRec?.UserData;
+      const watched    = userData?.Played;
+      if(watched) lastWatchedEpisodeRec = episodeRec;
+      else 
+        if(lastWatchedEpisodeRec) break seasonLoop;
+    }
+  }
+  if(lastWatchedEpisodeRec) {
+    console.log({lastWatchedEpisodeRec});
+    const episodeId     =  lastWatchedEpisodeRec.Id;
+    const episodeNumber = +lastWatchedEpisodeRec.IndexNumber;
+    const userData      =  lastWatchedEpisodeRec?.UserData;
+
+    userData.LastPlayedDate = new Date().toISOString();
+    const url = postUserDataUrl(episodeId);
+    const setDateRes = await axios({
+      method: 'post',
+      url:     url,
+      data:    userData
+    });
+    console.log("set lastPlayedDate", {
+                  seasonNumber, episodeNumber,
+                  post_res: setDateRes});
   }
 }
 
