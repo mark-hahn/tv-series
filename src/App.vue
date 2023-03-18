@@ -13,6 +13,8 @@ div
       button(@click="addPickUp") +
       button(@click="showAll" style="margin-left:20px") 
         | Show All
+      button(@click="pruneAllShows" style="margin-left:20px") 
+        | Prune All
 
     div(style="width:100%;")
       table(style="background-color:white; padding:0 14px; width:100%;")
@@ -225,6 +227,17 @@ export default {
   /////////////  METHODS  ////////////
   methods: {
 
+    async pruneAllShows() {
+      if(!confirm("ARE YOU SURE YOU WANT TO PRUNE ALL SHOWS?")) return;
+      for (let show of allShows) {
+        if(show.Id.slice(0,5) != 'nodb-') {
+          console.log('calling justPruneShow', {show});
+          const numDeleted = await emby.justPruneShow(show.Id);
+          if(numDeleted != 0) return; // debug
+        }
+      }
+    },
+
     nameHash(name) {
       this.allShowsLength = allShows.length;
       if(!name) {
@@ -329,10 +342,10 @@ export default {
       else // toggle watched
         await emby.editEpisode(show.Id, season, episode);
 
-      this.seriesMapAction('delete', show, deleted);
+      this.seriesMapAction('', show, deleted);
     },
 
-    async seriesMapAction(action, show, deleted) {
+    async seriesMapAction(action, show, wasDeleted) {
       if((action == 'open' && this.mapShow === show) ||
           action == 'close') {
         this.mapShow = null;
@@ -356,13 +369,12 @@ export default {
         for(const episode of episodes) {
           let [episodeNum, [played, avail, unaired, deleted]] = episode;
           seriesMapEpis[episodeNum] = episodeNum;
-          if(action == 'delete' &&
-              deleted.season  == seasonNum &&
-              deleted.episode == episodeNum) 
+          if(wasDeleted &&
+              wasDeleted.season == seasonNum && wasDeleted.episode == episodeNum) {
             deleted = true;
+          }
           const missing = !avail && !unaired;
-          seasonMap[episodeNum] = 
-                     {played, avail, missing, unaired, deleted};
+          seasonMap[episodeNum] = {played, avail, missing, unaired, deleted};
         }
       }
       this.seriesMapSeasons = 

@@ -121,6 +121,17 @@ export async function loadAllShows() {
   return shows;
 }
 
+const deleteOneFile = async (path) => {
+  if(!path) return;
+  const encodedPath = encodeURI(path) .replaceAll('/', '`')
+                                      .replaceAll('?', '~');
+  console.log('deleting file:', path);
+  const delres = (await axios.get(
+        `http://hahnca.com/tv/deleteFile/${encodedPath}`)).data;
+  if(delres.status != 'ok')
+      console.log('---- file deletion ERROR:', delres);
+}
+
 export const editEpisode = async (seriesId, 
               seasonNumIn, episodeNumIn, delFile = false) => {
   let lastWatchedRec = null;
@@ -146,13 +157,7 @@ export const editEpisode = async (seriesId,
 
       if(delFile) {
         const path = episodeRec?.MediaSources?.[0]?.Path;
-        if(path) {
-          const encodedPath = encodeURI(path).replace(/\//g, '`');
-          const delres = (await axios.get(
-            `http://hahnca.com/tv/deleteFile/${encodedPath}`)
-            ).data
-          console.log(`deleted ${path}, status: ${delres.status}`);
-        }
+        await deleteOneFile(path);
         return;
       }
 
@@ -213,6 +218,30 @@ seasonLoop:
   }
 }
 
+export const justPruneShow = async (seriesId) => { 
+  console.log('entering justPruneShow', seriesId);
+  let numDeleted = 0;
+  const seasonsRes = await axios.get(childrenUrl(seriesId));
+  for(let key in seasonsRes.data.Items) {
+    let   seasonRec   =  seasonsRes.data.Items[key];
+    let   seasonId    =  seasonRec.Id;
+    const episodesRes = await axios.get(childrenUrl(seasonId));
+    for(let key in episodesRes.data.Items) {
+      let   episodeRec =   episodesRes.data.Items[key];
+      const path       =   episodeRec?.MediaSources?.[0]?.Path;
+      const played     = !!episodeRec?.UserData?.Played;
+      const avail      =   episodeRec?.LocationType != "Virtual";
+
+      if(!played && avail) return numDeleted;
+      else {
+        await deleteOneFile(path);
+        numDeleted++;
+      }
+    }
+  }
+  return numDeleted;
+}
+
 export const getSeriesMap = async (seriesId, prune = false) => { 
   const seriesMap = [];
   let pruning = prune;
@@ -246,14 +275,8 @@ export const getSeriesMap = async (seriesId, prune = false) => {
       if(pruning) {
         if(!played && avail) pruning = false;
         else {
-          if(path) {
-            const encodedPath = encodeURI(path).replace(/\//g, '`');
-            const delres = (await axios.get(
-              `http://hahnca.com/tv/deleteFile/${encodedPath}`)
-              ).data
-            console.log(`deleted ${path}, status: ${delres.status}`);
-          }
-          deleted = avail; // set even if res != 'ok', file missing?
+          await deleteOneFile(path);
+          deleted = avail;     // set even if error
         }
       }
       // console.log(
@@ -276,9 +299,9 @@ export const findGap = async (series, seriesId) => {
   let hadNoFile         = false;
   let hadFile           = false;
   let hadUnaired        = false;
-  let numNoFile         = 0;
+  let missingEndFileCnt = -1;
   let lastEpiNums       = null;
-  let lastSeasonHadFile = false;
+  let lastEpiWatched    = false;
 
   const seasonsRes = await axios.get(childrenUrl(seriesId));
   for(let key in seasonsRes.data.Items) {
@@ -296,8 +319,6 @@ export const findGap = async (series, seriesId) => {
 
     let firstEpisodeInSeasonNotWatched = false;
     let firstEpisodeInSeason           = true;
-    numNoFile                          = 0;
-    lastSeasonHadFile                  = false;
 
     const episRes = await axios.get(childrenUrl(seasonId));
     for(let key in episRes.data.Items) {
@@ -310,8 +331,7 @@ export const findGap = async (series, seriesId) => {
 
       if(firstEpisodeInSeason && !watched) 
           firstEpisodeInSeasonNotWatched = true;
-      if(watched)  hadWatched = true;
-      if(haveFile) lastSeasonHadFile = true;
+      if(watched) hadWatched = true;
 
       if(dbg) console.log(1, {seasonIdx, epiIndex, seasonRec, episodeRec,
                               userData, watched, haveFile, unaired,
@@ -328,9 +348,21 @@ export const findGap = async (series, seriesId) => {
         hadUnaired = true;
         continue;
       }
-      
-      if(!haveFile && !watched) numNoFile++;
-      else                      numNoFile = 0;
+
+      // if(series.includes('Daisy'))
+      //   console.log(1,{epi:epiIndex, watched, lastEpiWatched, cnt: missingEndFileCnt});
+
+      if(watched || haveFile) missingEndFileCnt = -1;
+      else {
+        if(missingEndFileCnt == -1 && 
+           lastEpiWatched && !watched && !haveFile) missingEndFileCnt = 0;
+        if(missingEndFileCnt != -1 && 
+          !watched && !haveFile)                    missingEndFileCnt++;
+      }
+      lastEpiWatched = watched;
+
+      // if(series.includes('Daisy'))
+      //   console.log(2,{epi:epiIndex, watched, lastEpiWatched, cnt: missingEndFileCnt});
 
       ///////// not watched at beginning of season /////////
       if(firstEpisodeInSeasonNotWatched && watched && 
@@ -357,14 +389,14 @@ export const findGap = async (series, seriesId) => {
         console.log(`-- file gap -- ${series}, S${seasonIdx} E${epiIndex}`);
         return([seasonIdx, epiIndex, "file gap"]);
       }
-      lastEpiNums = [seasonIdx, epiIndex];
+      lastEpiNums    = [seasonIdx, epiIndex];
     }
     firstEpisodeInSeason = false;
   }
 
-  ///////// recent episodes missing (pickup behind) ///////// 
-  if(lastSeasonHadFile && numNoFile > 1 && numNoFile < 6) {
-    console.log(`-- end episodes missing -- ${series}`);
+  ///////// recent episodes missing ///////// 
+  if(missingEndFileCnt > 1) {
+    console.log(`-- ${missingEndFileCnt} end episodes missing -- ${series}`);
     lastEpiNums.push("end episodes missing");
     return lastEpiNums;
   }
