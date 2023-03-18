@@ -397,7 +397,7 @@ export const findGap = async (series, seriesId) => {
   ///////// recent episodes missing ///////// 
   if(missingEndFileCnt > 1) {
     console.log(`-- ${missingEndFileCnt} end episodes missing -- ${series}`);
-    lastEpiNums.push("end episodes missing");
+    lastEpiNums.push(`${missingEndFileCnt} end episodes missing`);
     return lastEpiNums;
   }
   return null;
