@@ -1,0 +1,3 @@
+episode click doesn't change watched status
+
+pruing sometimes deletes epi from db (when refreshing map)
