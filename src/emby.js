@@ -14,7 +14,7 @@ const getToken = async (name, pwd) => {
     method: 'post',
     url: "http://hahnca.com:8096" +
          "/emby/Users/AuthenticateByName" +
-         "?api_key=ba7d62f79cbd4a539b675b05b5663607",
+         "?api_key=1c399bd079d549cba8c916244d3add2b",
     headers: { Authorization: authHdr },
     data: { Username: name, Pw: pwd },
   };
@@ -23,7 +23,7 @@ const getToken = async (name, pwd) => {
 }
 
 export async function init() {
-  await getToken('MARK', '90-NBVcvbasd');
+  await getToken('mark', '90-MNBbnmyui');
 }
 
 
