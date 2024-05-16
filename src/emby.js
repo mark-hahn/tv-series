@@ -165,11 +165,11 @@ export const editEpisode = async (seriesId,
       }
 
       const episodeId = episodeRec.Id;
-      userData.Played = watched;
+      userData.Played = !watched;
       if(!userData.LastPlayedDate)
         userData.LastPlayedDate = new Date().toISOString();
       const url = postUserDataUrl(episodeId);
-      const setDateRes = await axios({
+      const setDataRes = await axios({
         method: 'post',
         url:     url,
         data:    userData
@@ -177,7 +177,7 @@ export const editEpisode = async (seriesId,
       console.log("toggled watched", {
                     epi: `S${seasonNumber} E${episodeNumber}`, 
                     post_url: url,
-                    post_res: setDateRes
+                    post_res: setDataRes
                   });
     }
   }
