@@ -4,8 +4,8 @@ const name      = "mark";
 const pwd       = "90-MNBbnmyui";
 const apiKey    = "1c399bd079d549cba8c916244d3add2b"
 const markUsrId = "894c752d448f45a3a1260ccaabd0adff";
-const authHdr   = 'UserId="894c752d448f45a3a1260ccaabd0adff", ' +
-                  'Client="MyClient", Device="myDevice", '      +
+const authHdr   = `UserId="${markUsrId}", `                +
+                  'Client="MyClient", Device="myDevice", ' +
                   'DeviceId="123456", Version="1.0.0"';
 let token = '';
 
